@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Waitgate – Accueil</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link href="https://fonts.googleapis.com/css?family=Inter:400,700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: radial-gradient(ellipse at 35% 40%, #191a23 60%, #191a23 100%);
+            color: #e4e6ef;
+            font-family: 'Inter',sans-serif;
+            min-height: 100vh;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .welcome-box {
+            max-width: 350px;
+            min-width: 270px;
+            background: #23243a;
+            border-radius: 1.3rem;
+            box-shadow: 0 8px 32px #0008;
+            padding: 2.6rem 2.2rem 2.2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .logo {
+            font-weight: 900;
+            font-size: 2.2rem;
+            letter-spacing: 0.09em;
+            color: #8a5cff;
+            margin-bottom: 2.2rem;
+            text-shadow: 0 2px 14px #0003;
+        }
+        .msg {
+            font-size: 1.09rem;
+            text-align: center;
+            margin-bottom: 1.2em;
+        }
+        .waiting {
+            font-size: 1.02rem;
+            color: #bbb3fa;
+            opacity: .8;
+            margin-bottom: .7em;
+        }
+        .footer {
+            font-size: .95rem;
+            opacity: .36;
+            text-align: center;
+            margin-top: 1.6em;
+            color: #e4e6ef;
+        }
+    </style>
+</head>
+<body>
+    <div class="welcome-box">
+        <div class="logo">Waitgate</div>
+        <div class="msg">{{MSG}}</div>
+        <div class="waiting">{{WAIT}}</div>
+        <div class="footer">Waitgate © 2025 • Prototype</div>
+    </div>
+</body>
+</html>

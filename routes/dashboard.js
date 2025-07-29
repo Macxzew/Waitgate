@@ -2,12 +2,14 @@ const fs = require('fs')
 const path = require('path')
 
 const DASH_USER = 'admin'
-const DASH_PASS = ' '
+const DASH_PASS = ' '
 let sessionActive = false
 
-const loginHtml = fs.readFileSync(path.join(__dirname, '../views/login.html'), 'utf-8')
-const panelHtml = fs.readFileSync(path.join(__dirname, '../views/panel.html'), 'utf-8')
+const loginHtml   = fs.readFileSync(path.join(__dirname, '../views/login.html'),   'utf-8')
+const panelHtml   = fs.readFileSync(path.join(__dirname, '../views/panel.html'),   'utf-8')
+const welcomeHtml = fs.readFileSync(path.join(__dirname, '../views/welcome.html'), 'utf-8')
 
+// --- Rendu dynamique panel ---
 function renderPanel(ctx) {
     return panelHtml
         .replace('{{TUNNEL_STATUS}}', ctx.wsTunnel ? 'EN LIGNE' : 'HORS LIGNE')
@@ -20,7 +22,28 @@ function renderPanel(ctx) {
         )
 }
 
+// --- Handler principal ---
 exports.handle = (req, res, ctx) => {
+    // Accueil public (welcome) dynamique
+    if (req.url === '/' || req.url === '/welcome') {
+        let msg, wait
+        if (!ctx.wsTunnel) {
+            msg  = 'Aucun service exposé pour le moment.'
+            wait = 'En attente d’un tunnel client…'
+        } else if (!ctx.tcpClients.size) {
+            msg  = 'Tunnel actif, aucun service web exposé.'
+            wait = 'Client connecté, mais rien d’exposé pour l’instant.'
+        } else {
+            msg  = 'Tunnel actif, service(s) exposé(s).'
+            wait = 'Vous pouvez accéder au service exposé, ou consulter le dashboard.'
+        }
+        res.writeHead(200, {'Content-Type':'text/html'})
+        return res.end(
+            welcomeHtml.replace('{{MSG}}', msg).replace('{{WAIT}}', wait)
+        )
+    }
+
+    // Page dashboard protégée
     if (req.url === '/dashboard') {
         if (!sessionActive) {
             res.writeHead(200, {'Content-Type':'text/html'})
@@ -30,6 +53,7 @@ exports.handle = (req, res, ctx) => {
         return res.end(renderPanel(ctx))
     }
 
+    // Auth simple POST login
     if (req.url === '/api/login' && req.method === 'POST') {
         let body = ''
         req.on('data', chunk => body += chunk)
@@ -48,17 +72,20 @@ exports.handle = (req, res, ctx) => {
         return
     }
 
+    // Logout
     if (req.url === '/api/logout' && req.method === 'POST') {
         sessionActive = false
         res.writeHead(200, {'Content-Type':'application/json'})
         return res.end(JSON.stringify({ok:1}))
     }
 
+    // Attente tunnel (no-op UX)
     if (req.url === '/api/wait-tunnel' && req.method === 'POST') {
         res.writeHead(200, {'Content-Type':'application/json'})
         return res.end(JSON.stringify({ok:1}))
     }
 
+    // Statut live AJAX
     if (req.url === '/api/status') {
         res.writeHead(200, {'Content-Type':'application/json'})
         return res.end(JSON.stringify({
@@ -68,6 +95,7 @@ exports.handle = (req, res, ctx) => {
         }))
     }
 
+    // 404 fallback
     res.writeHead(404)
     res.end('Not found')
 }

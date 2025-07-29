@@ -7,20 +7,16 @@ const wsHandler = require('./core/ws-handler')
 const dashboard = require('./routes/dashboard')
 const download = require('./routes/download')
 
-const PORT = 3000
+const PORT = 8000
 
 const wss = new WebSocket.Server({ noServer: true })
 const tcpClients = new Map()
 let wsTunnel = null
 
+// --- HTTP pour admin, dashboard, API, accueil public (si pas de tunnel actif) ---
 const httpServer = http.createServer((req, res) => {
-    // Sert panel.css et panel.js (via dashboard.js)
-    if (req.url === '/panel.css' || req.url === '/panel.js') {
-        dashboard.handle(req, res, { wsTunnel, tcpClients })
-        return
-    }
-    // Dashboard et API
-    if (req.url.startsWith('/dashboard') || req.url.startsWith('/api/')) {
+    // Admin/Dashboard/API
+    if (req.url === '/dashboard' || req.url.startsWith('/api/')) {
         dashboard.handle(req, res, { wsTunnel, tcpClients })
         return
     }
@@ -29,40 +25,46 @@ const httpServer = http.createServer((req, res) => {
         download.handle(req, res)
         return
     }
-    // 404
-    res.writeHead(404)
-    res.end('Not found')
+    // Accueil/welcome : seulement si PAS de tunnel
+    if (!wsTunnel || wsTunnel.readyState !== WebSocket.OPEN) {
+        dashboard.handle(req, res, { wsTunnel, tcpClients })
+        return
+    }
+    // Sinon, TOUT passe en relay TCP (ne pas répondre ici !)
 })
 
+// --- TCP entrypoint (reverse proxy brut sur tout sauf admin/API) ---
 const server = net.createServer(socket => {
     socket.once('data', buffer => {
         const str = buffer.toString()
-        // Toutes les requêtes HTTP/WS/Web (cf panel)
+        // Routes admin/API/welcome traitées par httpServer
         if (
-            str.startsWith('GET /tunnel') ||
-            str.startsWith('GET /dashboard') ||
-            str.startsWith('GET /panel.css') ||
-            str.startsWith('GET /panel.js') ||
-            str.startsWith('POST /api/login') ||
+            str.startsWith('GET /tunnel')      ||
+            str.startsWith('GET /dashboard')   ||
+            str.startsWith('GET /welcome')     ||
+            str.startsWith('GET / ')           ||
+            str.startsWith('POST /api/login')  ||
             str.startsWith('POST /api/logout') ||
             str.startsWith('POST /api/kill-tunnel') ||
             str.startsWith('POST /api/wait-tunnel') ||
-            str.startsWith('GET /api/status') ||
+            str.startsWith('GET /api/status')  ||
             str.startsWith('GET /download')
         ) {
             socket.unshift(buffer)
             httpServer.emit('connection', socket)
             return
         }
-        // Tunnel direct
-        if (!wsTunnel || wsTunnel.readyState !== WebSocket.OPEN) {
-            socket.destroy()
+        // Tunnel direct sinon (reverse proxy TCP)
+        if (wsTunnel && wsTunnel.readyState === WebSocket.OPEN) {
+            tcpTunnel.forward(socket, buffer, wsTunnel, tcpClients)
             return
         }
-        tcpTunnel.forward(socket, buffer, wsTunnel, tcpClients)
+        // Pas de tunnel : close direct
+        socket.destroy()
     })
 })
 
+// --- WS upgrade : /tunnel ---
 httpServer.on('upgrade', (req, socket, head) => {
     console.log('Upgrade HTTP reçu :', req.url)
     if (req.url === '/tunnel') {
@@ -88,6 +90,6 @@ wss.on('connection', ws => {
 })
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Serveur distant écoute sur port ${PORT}`);
-    console.log('En attente d’un client tunnel WS sur /tunnel ...');
-});
+    console.log(`Serveur distant écoute sur port ${PORT}`)
+    console.log('En attente d’un client tunnel WS sur /tunnel ...')
+})
