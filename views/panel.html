@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Waitgate - Panel</title>
+    <link href="https://fonts.googleapis.com/css?family=Inter:400,700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            background: radial-gradient(ellipse at 35% 40%, #191a23 60%, #191a23 100%);
+            color: #e4e6ef;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .panel {
+            max-width: 410px;
+            min-width: 295px;
+            background: #23243a;
+            border-radius: 1.5rem;
+            box-shadow: 0 8px 32px #0007;
+            padding: 2.3rem 2.1rem 2.1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .logo {
+            font-weight: 900;
+            font-size: 2.1rem;
+            letter-spacing: .08em;
+            color: #8a5cff;
+            margin-bottom: 2rem;
+            text-shadow: 0 2px 14px #0003;
+            text-align: center;
+        }
+
+        .section {
+            margin-bottom: 1.5rem;
+        }
+
+        .stat {
+            font-size: 1.09rem;
+            line-height: 1.7;
+        }
+
+        .chip {
+            display: inline-block;
+            background: #242651;
+            color: #e4e6ef;
+            border-radius: 999px;
+            padding: 0.01em 0.6em;
+            margin: 0 .25em;
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: .01em;
+            box-shadow: 0 1px 6px #0002;
+        }
+
+        .chip.status-up { background: #2ba674 !important; color: #eafbe3;}
+        .chip.status-down { background: #d23e50 !important; color: #fff4f4;}
+        .chip.ip { background: #22233e; color: #98e9fa;}
+        .users {
+            margin: .5em 0 0 .2em;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .4em;
+        }
+
+        .download, .admin-btn {
+            display: block;
+            width: 100%;
+            text-align: center;
+            background: linear-gradient(90deg,#6a73f7 60%,#8a5cff 100%);
+            color: #fff;
+            border: none;
+            border-radius: 1.2em;
+            padding: .93em 0;
+            font-size: 1.07rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 2px 14px #18182828;
+            transition: background .15s;
+            text-decoration: none;
+            margin-bottom: 1em;
+        }
+
+        .download:hover, .admin-btn:hover {
+            background: linear-gradient(90deg,#8a5cff,#6a73f7);
+        }
+
+        .admin-btn {
+            margin-bottom: 1em;
+            background: #2ba674;
+            color: #fff;
+            font-weight: 700;
+        }
+        .admin-btn.red { background: #d23e50; }
+
+        .logout {
+            display: block;
+            width: 100%;
+            text-align: center;
+            background: #d23e50;
+            color: #fff;
+            border: none;
+            border-radius: 1.2em;
+            padding: .93em 0;
+            font-size: 1.07rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 2px 14px #18182828;
+            margin-bottom: 1em;
+            transition: background .15s;
+        }
+        .logout:hover { background: #e74661; }
+
+        .footer {
+            font-size: .95rem;
+            opacity: .36;
+            text-align: center;
+            margin-top: 1.6em;
+            color: #e4e6ef;
+        }
+
+        @media (max-width: 480px) {
+            .panel { padding: 1.5rem 0.7rem; min-width: unset; }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <div class="logo">Waitgate</div>
+        <div class="section stat">
+            Tunnel :
+            <span class="chip status-{{TUNNEL_STATUS_CLASS}}" id="status-chip">{{TUNNEL_STATUS}}</span><br>
+            IP exposée :
+            <span class="chip ip" id="ip-chip">{{EXPOSER_IP}}</span>
+        </div>
+        <div class="section">
+            Utilisateurs connectés :
+            <div class="users" id="users-list">
+                {{USER_IPS}}
+            </div>
+        </div>
+        <a class="download" href="/download">Télécharger client.js</a>
+        <button class="logout" id="logout-btn">Déconnexion</button>
+        <div class="footer">Waitgate © 2025 • Prototype</div>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Déconnexion
+        let btn = document.getElementById('logout-btn')
+        if (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault() // <-- évite reload ou comportements chelous
+                fetch('/api/logout', { method: 'POST' })
+                    .then(() => window.location = '/dashboard')
+            })
+        }
+
+        // Rafraîchissement status
+        function refreshStatus() {
+            fetch('/api/status').then(r => r.json()).then(s => {
+                let chip = document.getElementById('status-chip')
+                chip.innerText = s.tunnel ? 'EN LIGNE' : 'HORS LIGNE'
+                chip.className = 'chip ' + (s.tunnel ? 'status-up' : 'status-down')
+                document.getElementById('ip-chip').innerText = s.exposerIp || '-'
+                let usersDiv = document.getElementById('users-list')
+                usersDiv.innerHTML = (s.userIps.length === 0)
+                    ? '<i style="opacity:.7;">Personne</i>'
+                    : s.userIps.map(ip => `<span class="chip ip">${ip}</span>`).join(' ')
+            })
+        }
+
+        setInterval(refreshStatus, 1200)
+        refreshStatus()
+    })
+    </script>
+</body>
+</html>
