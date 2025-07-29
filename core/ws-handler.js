@@ -13,6 +13,8 @@ function handle(ws, tcpClients) {
     })
     ws.on('error', err => {
         console.log('Erreur WS côté serveur:', err)
+        for (const sock of tcpClients.values()) sock.destroy()
+        tcpClients.clear()
     })
 }
 
