@@ -7,7 +7,7 @@ const wsHandler = require('./core/ws-handler')
 const dashboard = require('./routes/dashboard')
 const download = require('./routes/download')
 
-const PORT = 2000
+const PORT = 3000
 
 const wss = new WebSocket.Server({ noServer: true })
 const tcpClients = new Map()
@@ -88,6 +88,6 @@ wss.on('connection', ws => {
 })
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Serveur distant écoute sur port ${PORT}`)
-    console.log('En attente d’un client tunnel WS sur /tunnel ...')
-})
+    console.log(`Serveur distant écoute sur port ${PORT}`);
+    console.log('En attente d’un client tunnel WS sur /tunnel ...');
+});
