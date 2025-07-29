@@ -7,7 +7,8 @@ const wsHandler = require('./core/ws-handler')
 const dashboard = require('./routes/dashboard')
 const download = require('./routes/download')
 
-const PORT = 8000
+// Prend le port Render.com si dispo sinon fallback local
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000
 
 const wss = new WebSocket.Server({ noServer: true })
 const tcpClients = new Map()
@@ -25,7 +26,7 @@ const httpServer = http.createServer((req, res) => {
         download.handle(req, res)
         return
     }
-    // Accueil/welcome : seulement si PAS de tunnel
+    // Accueil/welcome : seulement si PAS de tunnel
     if (!wsTunnel || wsTunnel.readyState !== WebSocket.OPEN) {
         dashboard.handle(req, res, { wsTunnel, tcpClients })
         return
@@ -89,6 +90,7 @@ wss.on('connection', ws => {
     })
 })
 
+// Écoute sur le port auto (Render.com ready)
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Serveur distant écoute sur port ${PORT}`)
     console.log('En attente d’un client tunnel WS sur /tunnel ...')
