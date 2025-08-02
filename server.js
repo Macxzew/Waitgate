@@ -1,18 +1,20 @@
+const net = require('net')
 const http = require('http')
 const WebSocket = require('ws')
 const dashboard = require('./routes/dashboard')
 const download = require('./routes/download')
+const tcpTunnel = require('./core/tcp-tunnel')
+const wsHandler = require('./core/ws-handler')
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000
 
 const wss = new WebSocket.Server({ noServer: true })
+const tcpClients = new Map()
 let wsTunnel = null
 
-// Compat dashboard
-const tcpClients = new Map()
-
+// Serveur HTTP
 const httpServer = http.createServer((req, res) => {
-    // Endpoints dashboard/API/download
+    // Dashboard, API, download
     if (req.url === '/dashboard' || req.url.startsWith('/api/')) {
         dashboard.handle(req, res, { wsTunnel, tcpClients })
         return
@@ -22,7 +24,7 @@ const httpServer = http.createServer((req, res) => {
         return
     }
 
-    // le reste par le proxy
+    // Proxy HTTP pour TOUT le reste
     if (!wsTunnel || wsTunnel.readyState !== 1) {
         res.writeHead(502)
         return res.end('Aucun client proxy connecté.')
@@ -51,6 +53,30 @@ const httpServer = http.createServer((req, res) => {
     })
 })
 
+// Serveur TCP “brut” pour tout ce qui n’est PAS HTTP/WS
+const tcpServer = net.createServer(socket => {
+    socket.once('data', buffer => {
+        const str = buffer.toString()
+        // Si c’est HTTP (ou WS) on route vers httpServer
+        if (
+            str.startsWith('GET ') || str.startsWith('POST ') ||
+            str.startsWith('PUT ') || str.startsWith('HEAD ') ||
+            str.startsWith('DELETE ') || str.startsWith('OPTIONS ')
+        ) {
+            socket.unshift(buffer)
+            httpServer.emit('connection', socket)
+            return
+        }
+        // Sinon tunnel TCP brut via WebSocket
+        if (wsTunnel && wsTunnel.readyState === 1) {
+            tcpTunnel.forward(socket, buffer, wsTunnel, tcpClients)
+            return
+        }
+        socket.destroy()
+    })
+})
+
+// WebSocket Upgrade
 httpServer.on('upgrade', (req, socket, head) => {
     if (req.url === '/tunnel') {
         if (wsTunnel && wsTunnel.readyState === WebSocket.OPEN) {
@@ -63,13 +89,24 @@ httpServer.on('upgrade', (req, socket, head) => {
     }
 })
 
+// Gestion du tunnel WebSocket
 wss.on('connection', ws => {
     wsTunnel = ws
-    ws.on('close', () => { wsTunnel = null })
-    ws.on('error', () => { wsTunnel = null })
+    wsHandler.handle(ws, tcpClients)
+    ws.on('close', () => {
+        wsTunnel = null
+        for (const sock of tcpClients.values()) sock.destroy()
+        tcpClients.clear()
+    })
+    ws.on('error', () => {
+        wsTunnel = null
+        for (const sock of tcpClients.values()) sock.destroy()
+        tcpClients.clear()
+    })
 })
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`Serveur distant écoute sur port ${PORT}`)
+// Démarre les serveurs
+tcpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`Serveur universel écoute sur port ${PORT}`)
     console.log('En attente d’un client tunnel WS sur /tunnel ...')
 })
