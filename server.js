@@ -49,12 +49,12 @@ const httpServer = http.createServer((req, res) => {
                 try {
                     const data = JSON.parse(msg)
                     if (data.reqId !== reqId) return
-                    wss.off('message', onMessage)
+                    wsTunnel.off('message', onMessage)
                     res.writeHead(data.status || 200, data.headers || {})
                     res.end(data.body ? Buffer.from(data.body, 'base64') : undefined)
-                } catch {}
+                } catch (e) { }
             }
-            wss.on('message', onMessage)
+            wsTunnel.on('message', onMessage)
             wsTunnel.send(JSON.stringify({ type: 'http-proxy', reqId, req: toProxy }))
         })
         return
