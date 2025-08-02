@@ -42,19 +42,19 @@ class LocalTunnel {
         this.socket = net.connect(LOCAL_PORT, LOCAL_HOST)
         this.socket.on('connect', () => {
             localSockets.set(this.clientId, this.socket)
-            this.socket.write(this.payload)
+            this.socket.write(Buffer.from(this.payload, 'base64'))
         })
         this.socket.on('data', chunk => {
             if (this.ws.readyState === 1) {
-                const header = Buffer.alloc(4)
-                header.writeUInt32BE(this.clientId, 0)
-                this.ws.send(Buffer.concat([header, chunk]))
+                this.ws.send(JSON.stringify({
+                    id: this.clientId,
+                    data: chunk.toString('base64')
+                }))
             }
         })
         this.socket.on('close', () => {
             localSockets.delete(this.clientId)
             clearTimeout(this.retryTimeout)
-            // Optionnel : log debug
         })
         this.socket.on('error', err => {
             localSockets.delete(this.clientId)
@@ -64,14 +64,18 @@ class LocalTunnel {
     }
 }
 
-function handleWSMessage(data, ws) {
-    const clientId = data.readUInt32BE(0)
-    const payload = data.slice(4)
-    const socket = localSockets.get(clientId)
+function handleWSMessage(msg, ws) {
+    let obj
+    try {
+        obj = JSON.parse(msg)
+    } catch { return }
+    const { id, data } = obj || {}
+    if (!id || !data) return
+    const socket = localSockets.get(id)
     if (!socket)
-        new LocalTunnel(clientId, ws, payload)
+        new LocalTunnel(id, ws, data)
     else if (!socket.destroyed)
-        socket.write(payload)
+        socket.write(Buffer.from(data, 'base64'))
 }
 
 function connectWS() {
@@ -79,8 +83,8 @@ function connectWS() {
     ws.on('open', () => {
         console.log('Tunnel WS connecté')
     })
-    ws.on('message', data => {
-        handleWSMessage(data, ws)
+    ws.on('message', msg => {
+        handleWSMessage(msg, ws)
     })
     ws.on('close', () => {
         console.log('Tunnel fermé, reconnexion dans 5s')

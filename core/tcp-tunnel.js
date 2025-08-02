@@ -1,32 +1,28 @@
-const { Buffer } = require('buffer')
-
 let nextId = 1
 
 function forward(socket, firstBuffer, wsTunnel, tcpClients) {
     const clientId = nextId++
     tcpClients.set(clientId, socket)
 
-    // Send premier paquet au client
-    const header = Buffer.alloc(4)
-    header.writeUInt32BE(clientId, 0)
-    wsTunnel.send(Buffer.concat([header, firstBuffer]))
+    // Premier paquet via JSON/base64
+    wsTunnel.send(JSON.stringify({
+        id: clientId,
+        data: firstBuffer.toString('base64')
+    }))
 
     socket.on('data', chunk => {
         if (wsTunnel.readyState !== 1) return
-        const header = Buffer.alloc(4)
-        header.writeUInt32BE(clientId, 0)
-        wsTunnel.send(Buffer.concat([header, chunk]))
+        wsTunnel.send(JSON.stringify({
+            id: clientId,
+            data: chunk.toString('base64')
+        }))
     })
 
     socket.on('close', () => {
         tcpClients.delete(clientId)
-        if (wsTunnel.readyState === 1) {
-            const header = Buffer.alloc(4)
-            header.writeUInt32BE(clientId, 0)
-        }
     })
 
-    socket.on('error', err => {
+    socket.on('error', () => {
         tcpClients.delete(clientId)
     })
 }

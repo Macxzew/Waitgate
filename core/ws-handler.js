@@ -1,11 +1,16 @@
 function handle(ws, tcpClients) {
     console.log('Tunnel WS client connecté')
 
-    ws.on('message', data => {
-        const clientId = data.readUInt32BE(0)
-        const payload = data.slice(4)
-        const sock = tcpClients.get(clientId)
-        if (sock && !sock.destroyed) sock.write(payload)
+    ws.on('message', msg => {
+        let obj
+        try {
+            obj = JSON.parse(msg)
+        } catch { return }
+        const { id, data } = obj || {}
+        if (!id || !data) return
+        const sock = tcpClients.get(id)
+        if (sock && !sock.destroyed)
+            sock.write(Buffer.from(data, 'base64'))
     })
 
     ws.on('close', () => {
