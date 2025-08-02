@@ -12,11 +12,7 @@ let wsTunnel = null
 const tcpClients = new Map()
 
 const httpServer = http.createServer((req, res) => {
-    // Accueil dynamique
-    if (req.url === '/' || req.url === '/welcome') {
-        dashboard.handle(req, res, { wsTunnel, tcpClients })
-        return
-    }
+    // Endpoints dashboard/API/download
     if (req.url === '/dashboard' || req.url.startsWith('/api/')) {
         dashboard.handle(req, res, { wsTunnel, tcpClients })
         return
@@ -26,43 +22,33 @@ const httpServer = http.createServer((req, res) => {
         return
     }
 
-    // Proxy HTTP universel : accepte aussi bien /proxy que /proxy/
-    if (req.url === '/proxy' || req.url === '/proxy/') {
-        req.url = '/proxy/'
+    // le reste par le proxy
+    if (!wsTunnel || wsTunnel.readyState !== 1) {
+        res.writeHead(502)
+        return res.end('Aucun client proxy connecté.')
     }
-    if (req.url.startsWith('/proxy/')) {
-        if (!wsTunnel || wsTunnel.readyState !== 1) {
-            res.writeHead(502)
-            return res.end('Aucun client proxy connecté.')
+    let body = []
+    req.on('data', chunk => body.push(chunk))
+    req.on('end', () => {
+        const toProxy = {
+            method: req.method,
+            path: req.url,
+            headers: req.headers,
+            body: body.length ? Buffer.concat(body).toString('base64') : undefined
         }
-        let body = []
-        req.on('data', chunk => body.push(chunk))
-        req.on('end', () => {
-            const toProxy = {
-                method: req.method,
-                path: req.url.replace(/^\/proxy/, ''), // "/" si c'était /proxy/ !
-                headers: req.headers,
-                body: body.length ? Buffer.concat(body).toString('base64') : undefined
-            }
-            const reqId = Math.random().toString(36).slice(2)
-            function onMessage(msg) {
-                try {
-                    const data = JSON.parse(msg)
-                    if (data.reqId !== reqId) return
-                    wsTunnel.off('message', onMessage)
-                    res.writeHead(data.status || 200, data.headers || {})
-                    res.end(data.body ? Buffer.from(data.body, 'base64') : undefined)
-                } catch (e) { }
-            }
-            wsTunnel.on('message', onMessage)
-            wsTunnel.send(JSON.stringify({ type: 'http-proxy', reqId, req: toProxy }))
-        })
-        return
-    }
-
-    // 404 Fallback
-    res.writeHead(404)
-    res.end('Not found')
+        const reqId = Math.random().toString(36).slice(2)
+        function onMessage(msg) {
+            try {
+                const data = JSON.parse(msg)
+                if (data.reqId !== reqId) return
+                wsTunnel.off('message', onMessage)
+                res.writeHead(data.status || 200, data.headers || {})
+                res.end(data.body ? Buffer.from(data.body, 'base64') : undefined)
+            } catch (e) { }
+        }
+        wsTunnel.on('message', onMessage)
+        wsTunnel.send(JSON.stringify({ type: 'http-proxy', reqId, req: toProxy }))
+    })
 })
 
 httpServer.on('upgrade', (req, socket, head) => {
