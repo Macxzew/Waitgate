@@ -53,7 +53,7 @@ const httpServer = http.createServer((req, res) => {
     })
 })
 
-// Serveur TCP “brut” pour tout ce qui n’est PAS HTTP/WS
+// srv TCP “brut” pour tout ce qui n’est PAS HTTP/WS
 const tcpServer = net.createServer(socket => {
     socket.once('data', buffer => {
         const str = buffer.toString()
