@@ -33,22 +33,22 @@ const server = net.createServer(socket => {
     socket.once('data', buffer => {
         const str = buffer.toString()
         if (
-            str.startsWith('GET /tunnel')      ||
-            str.startsWith('GET /dashboard')   ||
-            str.startsWith('GET /welcome')     ||
-            str.startsWith('GET / ')           ||
-            str.startsWith('POST /api/login')  ||
+            str.startsWith('GET /tunnel') ||
+            str.startsWith('GET /dashboard') ||
+            str.startsWith('GET /welcome') ||
+            str.startsWith('POST /api/login') ||
             str.startsWith('POST /api/logout') ||
             str.startsWith('POST /api/kill-tunnel') ||
             str.startsWith('POST /api/wait-tunnel') ||
-            str.startsWith('GET /api/status')  ||
+            str.startsWith('GET /api/status') ||
             str.startsWith('GET /download')
         ) {
             socket.unshift(buffer)
             httpServer.emit('connection', socket)
             return
         }
-        if (wsTunnel && wsTunnel.readyState === WebSocket.OPEN) {
+        // TOUT LE RESTE DOIT ÊTRE TUNNELISÉ !
+        if (wsTunnel && wsTunnel.readyState === 1) {
             tcpTunnel.forward(socket, buffer, wsTunnel, tcpClients)
             return
         }

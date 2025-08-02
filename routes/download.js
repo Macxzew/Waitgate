@@ -45,13 +45,16 @@ class LocalTunnel {
             this.socket.write(this.payload)
         })
         this.socket.on('data', chunk => {
-            const header = Buffer.alloc(4)
-            header.writeUInt32BE(this.clientId, 0)
-            this.ws.send(Buffer.concat([header, chunk]))
+            if (this.ws.readyState === 1) {
+                const header = Buffer.alloc(4)
+                header.writeUInt32BE(this.clientId, 0)
+                this.ws.send(Buffer.concat([header, chunk]))
+            }
         })
         this.socket.on('close', () => {
             localSockets.delete(this.clientId)
             clearTimeout(this.retryTimeout)
+            // Optionnel : log debug
         })
         this.socket.on('error', err => {
             localSockets.delete(this.clientId)
@@ -67,7 +70,7 @@ function handleWSMessage(data, ws) {
     const socket = localSockets.get(clientId)
     if (!socket)
         new LocalTunnel(clientId, ws, payload)
-    else
+    else if (!socket.destroyed)
         socket.write(payload)
 }
 
@@ -87,7 +90,7 @@ function connectWS() {
         setTimeout(connectWS, 5000)
     })
     ws.on('error', () => {
-        // Ne rien afficher
+        // Optionnel : log debug
     })
 }
 
