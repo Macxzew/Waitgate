@@ -2,7 +2,7 @@ const fs = require('fs')
 const path = require('path')
 
 const DASH_USER = 'admin'
-const DASH_PASS = ' '
+const DASH_PASS = ' '
 let sessionActive = false
 
 const loginHtml   = fs.readFileSync(path.join(__dirname, '../views/login.html'),   'utf-8')
@@ -11,7 +11,6 @@ const welcomeHtml = fs.readFileSync(path.join(__dirname, '../views/welcome.html'
 
 // Rendu dynamique panel
 function renderPanel(ctx) {
-    // Protection : ctx.tcpClients peut être undefined
     const tcpClientsSafe = ctx.tcpClients || new Map()
     return panelHtml
         .replace('{{TUNNEL_STATUS}}', ctx.wsTunnel ? 'EN LIGNE' : 'HORS LIGNE')

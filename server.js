@@ -12,6 +12,11 @@ let wsTunnel = null
 const tcpClients = new Map()
 
 const httpServer = http.createServer((req, res) => {
+    // Ajout accueil dynamique
+    if (req.url === '/' || req.url === '/welcome') {
+        dashboard.handle(req, res, { wsTunnel, tcpClients })
+        return
+    }
     if (req.url === '/dashboard' || req.url.startsWith('/api/')) {
         dashboard.handle(req, res, { wsTunnel, tcpClients })
         return
