@@ -2,35 +2,39 @@ const fs = require('fs')
 const path = require('path')
 
 const DASH_USER = 'admin'
-const DASH_PASS = ' '
+const DASH_PASS = ' '
 let sessionActive = false
 
 const loginHtml   = fs.readFileSync(path.join(__dirname, '../views/login.html'),   'utf-8')
 const panelHtml   = fs.readFileSync(path.join(__dirname, '../views/panel.html'),   'utf-8')
 const welcomeHtml = fs.readFileSync(path.join(__dirname, '../views/welcome.html'), 'utf-8')
 
-// --- Rendu dynamique panel ---
+// Rendu dynamique panel
 function renderPanel(ctx) {
+    // Protection : ctx.tcpClients peut être undefined
+    const tcpClientsSafe = ctx.tcpClients || new Map()
     return panelHtml
         .replace('{{TUNNEL_STATUS}}', ctx.wsTunnel ? 'EN LIGNE' : 'HORS LIGNE')
         .replace('{{EXPOSER_IP}}', ctx.wsTunnel ? ctx.wsTunnel._socket.remoteAddress : '-')
         .replace('{{USER_IPS}}',
-            Array.from(ctx.tcpClients.values()).length === 0
+            Array.from(tcpClientsSafe.values()).length === 0
                 ? '<i>Personne</i>'
-                : Array.from(ctx.tcpClients.values())
+                : Array.from(tcpClientsSafe.values())
                     .map(sock => `<span class="chip">${sock.remoteAddress}</span>`).join(' ')
         )
 }
 
-// --- Handler principal ---
+// Handler principal
 exports.handle = (req, res, ctx) => {
+    const tcpClientsSafe = ctx.tcpClients || new Map()
+
     // Accueil public (welcome) dynamique
     if (req.url === '/' || req.url === '/welcome') {
         let msg, wait
         if (!ctx.wsTunnel) {
             msg  = 'Aucun service exposé pour le moment.'
             wait = 'En attente d’un tunnel client…'
-        } else if (!ctx.tcpClients.size) {
+        } else if (!tcpClientsSafe.size) {
             msg  = 'Tunnel actif, aucun service web exposé.'
             wait = 'Client connecté, mais rien d’exposé pour l’instant.'
         } else {
@@ -53,7 +57,7 @@ exports.handle = (req, res, ctx) => {
         return res.end(renderPanel(ctx))
     }
 
-    // Auth simple POST login
+    // Auth POST login
     if (req.url === '/api/login' && req.method === 'POST') {
         let body = ''
         req.on('data', chunk => body += chunk)
@@ -91,7 +95,7 @@ exports.handle = (req, res, ctx) => {
         return res.end(JSON.stringify({
             tunnel: !!ctx.wsTunnel,
             exposerIp: ctx.wsTunnel ? ctx.wsTunnel._socket.remoteAddress : null,
-            userIps: Array.from(ctx.tcpClients.values()).map(sock => sock.remoteAddress)
+            userIps: Array.from(tcpClientsSafe.values()).map(sock => sock.remoteAddress)
         }))
     }
 

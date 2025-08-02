@@ -8,9 +8,12 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000
 const wss = new WebSocket.Server({ noServer: true })
 let wsTunnel = null
 
+// Compat dashboard
+const tcpClients = new Map()
+
 const httpServer = http.createServer((req, res) => {
     if (req.url === '/dashboard' || req.url.startsWith('/api/')) {
-        dashboard.handle(req, res, { wsTunnel })
+        dashboard.handle(req, res, { wsTunnel, tcpClients })
         return
     }
     if (req.url === '/download') {
@@ -18,13 +21,12 @@ const httpServer = http.createServer((req, res) => {
         return
     }
 
-    // --- HTTP Proxy universel ---
+    // Proxy HTTP universel
     if (req.url.startsWith('/proxy/')) {
         if (!wsTunnel || wsTunnel.readyState !== 1) {
             res.writeHead(502)
             return res.end('Aucun client proxy connecté.')
         }
-        // Read body if POST/PUT
         let body = []
         req.on('data', chunk => body.push(chunk))
         req.on('end', () => {
@@ -34,7 +36,6 @@ const httpServer = http.createServer((req, res) => {
                 headers: req.headers,
                 body: body.length ? Buffer.concat(body).toString('base64') : undefined
             }
-            // Génère un ID unique simple
             const reqId = Math.random().toString(36).slice(2)
             function onMessage(msg) {
                 try {
@@ -51,7 +52,6 @@ const httpServer = http.createServer((req, res) => {
         return
     }
 
-    // Fallback
     res.writeHead(404)
     res.end('Not found')
 })
