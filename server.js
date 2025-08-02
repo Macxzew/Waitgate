@@ -12,7 +12,7 @@ let wsTunnel = null
 const tcpClients = new Map()
 
 const httpServer = http.createServer((req, res) => {
-    // Ajout accueil dynamique
+    // Accueil dynamique
     if (req.url === '/' || req.url === '/welcome') {
         dashboard.handle(req, res, { wsTunnel, tcpClients })
         return
@@ -26,7 +26,10 @@ const httpServer = http.createServer((req, res) => {
         return
     }
 
-    // Proxy HTTP universel
+    // Proxy HTTP universel : accepte aussi bien /proxy que /proxy/
+    if (req.url === '/proxy' || req.url === '/proxy/') {
+        req.url = '/proxy/'
+    }
     if (req.url.startsWith('/proxy/')) {
         if (!wsTunnel || wsTunnel.readyState !== 1) {
             res.writeHead(502)
@@ -37,7 +40,7 @@ const httpServer = http.createServer((req, res) => {
         req.on('end', () => {
             const toProxy = {
                 method: req.method,
-                path: req.url.replace(/^\/proxy/, ''),
+                path: req.url.replace(/^\/proxy/, ''), // "/" si c'était /proxy/ !
                 headers: req.headers,
                 body: body.length ? Buffer.concat(body).toString('base64') : undefined
             }
@@ -57,6 +60,7 @@ const httpServer = http.createServer((req, res) => {
         return
     }
 
+    // 404 Fallback
     res.writeHead(404)
     res.end('Not found')
 })
