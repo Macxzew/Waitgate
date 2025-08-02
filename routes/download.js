@@ -1,6 +1,6 @@
 const jsTemplate = `
-const LOCAL_HOST = '127.0.0.1'
-const LOCAL_PORT = 25565
+const LOCAL_HOST = '127.0.0.1' // <-- À éditer si besoin
+const LOCAL_PORT = 80         // <-- Mets 443 pour HTTPS local !
 const REMOTE_WS_URL = 'REPLACE_ME_REMOTE_WS_URL'
 const RETRY_DELAY = 3000
 
@@ -25,72 +25,55 @@ try {
 }
 
 const WebSocket = wsLib
-const net = require('net')
+const http = require('http')
+const https = require('https')
 
-const localSockets = new Map()
-
-class LocalTunnel {
-    constructor(clientId, ws, payload) {
-        this.clientId = clientId
-        this.ws = ws
-        this.payload = payload
-        this.socket = null
-        this.retryTimeout = null
-        this.connect()
+// --- Handler proxy HTTP/HTTPS ---
+function handleProxyHTTP(reqId, req, ws) {
+    const options = {
+        hostname: LOCAL_HOST,
+        port: LOCAL_PORT,
+        path: req.path,
+        method: req.method,
+        headers: req.headers
     }
-    connect() {
-        this.socket = net.connect(LOCAL_PORT, LOCAL_HOST)
-        this.socket.on('connect', () => {
-            localSockets.set(this.clientId, this.socket)
-            this.socket.write(Buffer.from(this.payload, 'base64'))
+    const mod = (LOCAL_PORT == 443 ? https : http)
+    const proxyReq = mod.request(options, proxyRes => {
+        let chunks = []
+        proxyRes.on('data', d => chunks.push(d))
+        proxyRes.on('end', () => {
+            ws.send(JSON.stringify({
+                reqId,
+                status: proxyRes.statusCode,
+                headers: proxyRes.headers,
+                body: Buffer.concat(chunks).toString('base64')
+            }))
         })
-        this.socket.on('data', chunk => {
-            if (this.ws.readyState === 1) {
-                this.ws.send(JSON.stringify({
-                    id: this.clientId,
-                    data: chunk.toString('base64')
-                }))
-            }
-        })
-        this.socket.on('close', () => {
-            localSockets.delete(this.clientId)
-            clearTimeout(this.retryTimeout)
-        })
-        this.socket.on('error', err => {
-            localSockets.delete(this.clientId)
-            if (err.code === 'ECONNREFUSED')
-                this.retryTimeout = setTimeout(() => this.connect(), RETRY_DELAY)
-        })
-    }
+    })
+    proxyReq.on('error', () => {
+        ws.send(JSON.stringify({ reqId, status: 502 }))
+    })
+    if (req.body) proxyReq.write(Buffer.from(req.body, 'base64'))
+    proxyReq.end()
 }
 
-function handleWSMessage(msg, ws) {
-    let obj
-    try {
-        obj = JSON.parse(msg)
-    } catch { return }
-    const { id, data } = obj || {}
-    if (!id || !data) return
-    const socket = localSockets.get(id)
-    if (!socket)
-        new LocalTunnel(id, ws, data)
-    else if (!socket.destroyed)
-        socket.write(Buffer.from(data, 'base64'))
-}
-
+// --- Connexion WebSocket ---
 function connectWS() {
     const ws = new WebSocket(REMOTE_WS_URL)
     ws.on('open', () => {
         console.log('Tunnel WS connecté')
     })
     ws.on('message', msg => {
-        handleWSMessage(msg, ws)
+        try {
+            const data = JSON.parse(msg)
+            // Handler pour le proxy HTTP/HTTPS
+            if (data.type === 'http-proxy' && data.reqId && data.req) {
+                handleProxyHTTP(data.reqId, data.req, ws)
+            }
+        } catch (e) {}
     })
     ws.on('close', () => {
         console.log('Tunnel fermé, reconnexion dans 5s')
-        for (const sock of localSockets.values())
-            sock.destroy()
-        localSockets.clear()
         setTimeout(connectWS, 5000)
     })
     ws.on('error', () => {
@@ -106,10 +89,7 @@ exports.handle = (req, res) => {
     const host = req.headers['host']
     const wsProto = proto === 'https' ? 'wss' : 'ws'
     const wsUrl = `${wsProto}://${host}/tunnel`
-    const jsFinal = jsTemplate.replace(
-        'REPLACE_ME_REMOTE_WS_URL',
-        wsUrl
-    )
+    const jsFinal = jsTemplate.replace('REPLACE_ME_REMOTE_WS_URL', wsUrl)
     res.writeHead(200, {
         'Content-Type': 'application/javascript',
         'Content-Disposition': 'attachment; filename="client.js"'
