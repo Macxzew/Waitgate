@@ -16,7 +16,7 @@
 
 ---
 
-## ✨ Fonctionnalités principales
+## ✨ Features
 
 - 🔒 End-to-end encryption: Every payload is AES-256-GCM encrypted before transmission, even on plain WS/HTTP (nothing travels in cleartext)
 - 🕳️ Bypass NAT/firewall via outgoing tunnels
