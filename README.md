@@ -92,7 +92,7 @@ Edit the `.env` file to customize.
 - **Strong authentication for both dashboard and tunnel.**
 - **No admin/tunnel secret is ever stored client-side.**
 
-> ⚠️ Waitgate does not require HTTPS/TLS or any proxy on its own port. Only the service you want to expose needs to handle HTTPS/TLS if required (for example: if you expose a web server with HTTPS, it’s your web server that must serve HTTPS, not Waitgate). Waitgate simply tunnels all traffic as-is, every message is individually AES-encrypted client-side before entering the tunnel.
+> ⚠️ **Waitgate does not require HTTPS/TLS or any proxy on its own port. Only the service you want to expose needs to handle HTTPS/TLS if required (for ex: if you expose a web server with HTTPS, it’s your web server that must serve HTTPS, not Waitgate). Waitgate simply tunnels all traffic as-is. Every message is individually AES-encrypted client-side before entering the tunnel. If you run Waitgate behind a reverse proxy (Nginx, Caddy, etc.), only HTTP services can be exposed; raw TCP will not work through the tunnel.**
 
 ---
 
