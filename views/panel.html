@@ -7,50 +7,114 @@
     <style>
         *, *::before, *::after { box-sizing: border-box; }
 
-        body {
-            background: radial-gradient(ellipse at 35% 40%, #191a23 60%, #191a23 100%);
-            color: #e4e6ef;
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
             font-family: 'Inter', sans-serif;
-            min-height: 100vh;
-            height: 100vh;
+            color: #e4e6ef;
+            background: #101025;
+            overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0;
+        }
+        .background {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
             overflow: hidden;
+        }
+        .grid3d {
+            position: absolute;
+            width: 240%;
+            height: 240%;
+            top: -70%;
+            left: -70%;
+            background-image:
+                linear-gradient(0deg, #8a5cff22 1px, transparent 1px),
+                linear-gradient(90deg, #8a5cff22 1px, transparent 1px);
+            background-size: 44px 44px;
+            transform: rotateX(70deg) rotateZ(17deg) scale(1.1);
+            transform-origin: center;
+            animation: grid-move 65s linear infinite;
+            opacity: 0.055;
+            pointer-events: none;
+        }
+        @keyframes grid-move {
+            0%   { transform: rotateX(70deg) rotateZ(17deg) scale(1.1) translate(0,0); }
+            100% { transform: rotateX(70deg) rotateZ(17deg) scale(1.1) translate(-220px,-200px); }
+        }
+
+        /* Etoiles/filantes */
+        #stars-canvas {
+            position: absolute;
+            width: 100vw;
+            height: 100vh;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            display: block;
+        }
+        .floating-glow {
+            position: absolute;
+            inset: 0;
+            margin: auto;
+            pointer-events: none;
+            z-index: 2;
+            filter: blur(38px);
+            opacity: 0.24;
+            border-radius: 2.1rem;
+            width: 273px;
+            height: 447px;
+            background: radial-gradient(ellipse at 60% 30%, #9d81fa 55%, transparent 95%);
+            animation: glow-pulse 5.2s ease-in-out infinite alternate;
+            transition: opacity .3s;
+        }
+        @media (max-width: 600px) {
+            .floating-glow { width: 90vw; height: 120px; }
+        }
+        @keyframes glow-pulse {
+            from { opacity: .18; filter: blur(32px);}
+            to   { opacity: .34; filter: blur(56px);}
         }
 
         .panel {
-            max-width: 410px;
+            position: relative;
+            z-index: 3;
+            max-width: 460px;
             min-width: 295px;
-            background: #23243a;
-            border-radius: 1.5rem;
-            box-shadow: 0 8px 32px #0007;
-            padding: 2.3rem 2.1rem 2.1rem;
-            display: flex;
-            flex-direction: column;
-            align-items: stretch;
+            background: rgba(35,36,58, 0.88);
+            border-radius: 1.4rem;
+            padding: 2.6rem 2.2rem;
+            text-align: center;
+            animation: fadeIn 0.8s ease-out, floaty 3.0s ease-in-out infinite alternate;
+            backdrop-filter: blur(3.5px);
+            opacity: 85%;
+        }
+        @media (max-width: 480px) {
+            .panel { padding: 1.5rem 0.7rem; min-width: unset; }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to   { opacity: 0.85; }
+        }
+        @keyframes floaty {
+            0%   { transform: translateY(0px);}
+            100% { transform: translateY(-10px);}
         }
 
         .logo {
             font-weight: 900;
-            font-size: 2.1rem;
+            font-size: 2.2rem;
             letter-spacing: .08em;
             color: #8a5cff;
-            margin-bottom: 2rem;
+            margin-bottom: 1.6rem;
             text-shadow: 0 2px 14px #0003;
             text-align: center;
         }
-
-        .section {
-            margin-bottom: 1.5rem;
-        }
-
-        .stat {
-            font-size: 1.09rem;
-            line-height: 1.7;
-        }
-
+        .section { margin-bottom: 1.5rem; }
+        .stat { font-size: 1.08rem; line-height: 1.7; }
         .chip {
             display: inline-block;
             background: #242651;
@@ -63,7 +127,6 @@
             letter-spacing: .01em;
             box-shadow: 0 1px 6px #0002;
         }
-
         .chip.status-up { background: #2ba674 !important; color: #eafbe3;}
         .chip.status-down { background: #d23e50 !important; color: #fff4f4;}
         .chip.ip { background: #22233e; color: #98e9fa;}
@@ -73,7 +136,6 @@
             flex-wrap: wrap;
             gap: .4em;
         }
-
         .download, .admin-btn {
             display: block;
             width: 100%;
@@ -91,19 +153,11 @@
             text-decoration: none;
             margin-bottom: 1em;
         }
-
         .download:hover, .admin-btn:hover {
             background: linear-gradient(90deg,#8a5cff,#6a73f7);
         }
-
-        .admin-btn {
-            margin-bottom: 1em;
-            background: #2ba674;
-            color: #fff;
-            font-weight: 700;
-        }
+        .admin-btn { margin-bottom: 1em; background: #2ba674; color: #fff; font-weight: 700;}
         .admin-btn.red { background: #d23e50; }
-
         .logout {
             display: block;
             width: 100%;
@@ -121,7 +175,6 @@
             transition: background .15s;
         }
         .logout:hover { background: #e74661; }
-
         .footer {
             font-size: .95rem;
             opacity: .36;
@@ -129,61 +182,131 @@
             margin-top: 1.6em;
             color: #e4e6ef;
         }
-
-        @media (max-width: 480px) {
-            .panel { padding: 1.5rem 0.7rem; min-width: unset; }
-        }
-
     </style>
 </head>
 <body>
-    <div class="panel">
-        <div class="logo">Waitgate</div>
-        <div class="section stat">
-            Tunnel :
-            <span class="chip status-{{TUNNEL_STATUS_CLASS}}" id="status-chip">{{TUNNEL_STATUS}}</span><br>
-            IP exposée :
-            <span class="chip ip" id="ip-chip">{{EXPOSER_IP}}</span>
-        </div>
-        <div class="section">
-            Utilisateurs connectés :
-            <div class="users" id="users-list">
-                {{USER_IPS}}
-            </div>
-        </div>
-        <a class="download" href="/download">Télécharger client.js</a>
-        <button class="logout" id="logout-btn">Déconnexion</button>
-        <div class="footer">Waitgate © 2025 • Prototype</div>
-    </div>
-    <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Déconnexion
-        let btn = document.getElementById('logout-btn')
-        if (btn) {
-            btn.addEventListener('click', function (e) {
-                e.preventDefault() // <-- évite reload ou comportements chelous
-                fetch('/api/logout', { method: 'POST' })
-                    .then(() => window.location = '/dashboard')
-            })
-        }
+  <div class="background">
+      <div class="grid3d"></div>
+      <canvas id="stars-canvas"></canvas>
+      <div class="floating-glow"></div>
+  </div>
 
-        // Rafraîchissement status
-        function refreshStatus() {
-            fetch('/api/status').then(r => r.json()).then(s => {
-                let chip = document.getElementById('status-chip')
-                chip.innerText = s.tunnel ? 'EN LIGNE' : 'HORS LIGNE'
-                chip.className = 'chip ' + (s.tunnel ? 'status-up' : 'status-down')
-                document.getElementById('ip-chip').innerText = s.exposerIp || '-'
-                let usersDiv = document.getElementById('users-list')
-                usersDiv.innerHTML = (s.userIps.length === 0)
-                    ? '<i style="opacity:.7;">Personne</i>'
-                    : s.userIps.map(ip => `<span class="chip ip">${ip}</span>`).join(' ')
-            })
-        }
+  <div class="panel">
+      <div class="logo">Waitgate</div>
+      <div class="section stat">
+          Tunnel :
+          <span class="chip status-{{TUNNEL_STATUS_CLASS}}" id="status-chip">{{TUNNEL_STATUS}}</span><br>
+          exposed IP :
+          <span class="chip ip" id="ip-chip">{{EXPOSER_IP}}</span>
+      </div>
+      <div class="section">
+          Users online :
+          <div class="users" id="users-list">
+              {{USER_IPS}}
+          </div>
+      </div>
+      <a class="download" href="/download">Download client.js</a>
+      <button class="logout" id="logout-btn">Logout</button>
+      <div class="footer">Waitgate © 2025 • Prototype</div>
+  </div>
+  <script>
+    // Déconnexion
+    document.getElementById('logout-btn').onclick = e => {
+        e.preventDefault();
+        fetch('/api/logout', { method: 'POST' })
+            .then(() => window.location = '/dashboard');
+    }
+    // Rafraîchissement status live
+    function refreshStatus() {
+        fetch('/api/status').then(r => r.json()).then(s => {
+            let chip = document.getElementById('status-chip')
+            chip.innerText = s.tunnel ? 'EN LIGNE' : 'HORS LIGNE'
+            chip.className = 'chip ' + (s.tunnel ? 'status-up' : 'status-down')
+            document.getElementById('ip-chip').innerText = s.exposerIp || '-'
+            let usersDiv = document.getElementById('users-list')
+            usersDiv.innerHTML = (s.userIps.length === 0)
+                ? '<i style="opacity:.7;">Personne</i>'
+                : s.userIps.map(ip => `<span class="chip ip">${ip}</span>`).join(' ')
+        })
+    }
+    setInterval(refreshStatus, 1200)
+    refreshStatus()
 
-        setInterval(refreshStatus, 1200)
-        refreshStatus()
-    })
-    </script>
+    // Etoiles + filantes
+    const canvas = document.getElementById('stars-canvas')
+    const ctx = canvas.getContext('2d')
+    let stars = [], shootingStars = []
+    function resizeCanvas() {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    function rand(a, b) { return a + Math.random() * (b - a) }
+    function createStars() {
+      stars = []
+      for (let i = 0; i < 120; i++) {
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          r: rand(0.3, 1.10),
+          o: rand(0.45, 0.88),
+          tw: rand(0, Math.PI*2)
+        })
+      }
+    }
+    function createShootingStar() {
+      if (Math.random() > 0.986) {
+        const side = Math.random() > 0.5 ? 0 : canvas.width
+        shootingStars.push({
+          x: side,
+          y: rand(40, canvas.height*0.7),
+          vx: side === 0 ? rand(5, 10) : -rand(5, 10),
+          vy: rand(-2, 2),
+          len: rand(110, 220),
+          alpha: 1.09
+        })
+      }
+    }
+    function draw() {
+      ctx.clearRect(0,0,canvas.width,canvas.height)
+      for (let s of stars) {
+        ctx.save()
+        ctx.globalAlpha = s.o * (0.5 + 0.5*Math.sin(Date.now()/1200 + s.tw))
+        ctx.beginPath()
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI*2)
+        ctx.fillStyle = "#e4e6ff"
+        ctx.shadowColor = "#8a5cff"
+        ctx.shadowBlur = 6
+        ctx.fill()
+        ctx.restore()
+      }
+      for (let i = shootingStars.length-1; i>=0; i--) {
+        let s = shootingStars[i]
+        ctx.save()
+        ctx.globalAlpha = Math.max(0, s.alpha)
+        ctx.strokeStyle = "#8a5cffcc"
+        ctx.shadowColor = "#8a5cff"
+        ctx.shadowBlur = 15
+        ctx.beginPath()
+        ctx.moveTo(s.x, s.y)
+        ctx.lineTo(s.x - s.vx*s.len/14, s.y - s.vy*s.len/28)
+        ctx.lineWidth = 2.2
+        ctx.stroke()
+        ctx.restore()
+
+        s.x += s.vx
+        s.y += s.vy
+        s.alpha -= 0.018
+
+        if (s.x < -300 || s.x > canvas.width+300 || s.alpha <= 0)
+          shootingStars.splice(i,1)
+      }
+      createShootingStar()
+      requestAnimationFrame(draw)
+    }
+    window.addEventListener('resize', () => { resizeCanvas(); createStars(); })
+    resizeCanvas()
+    createStars()
+    draw()
+  </script>
 </body>
 </html>

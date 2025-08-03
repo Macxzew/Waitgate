@@ -1,7 +1,12 @@
+const fs = require('fs')
+const path = require('path')
+const { TUNNEL_AES_KEY } = require('../config')
+
 const jsTemplate = `
-const LOCAL_HOST = '127.0.0.1' // IP du service à exposer
-const LOCAL_PORT = 80         // Port du service à exposer
+const LOCAL_HOST = '127.0.0.1' // Service IP address to be exposed
+const LOCAL_PORT = 80         // Service port to be exposed
 const REMOTE_WS_URL = 'REPLACE_ME_REMOTE_WS_URL'
+const AES_KEY_HEX = 'REPLACE_ME_AES_KEY'
 const RETRY_DELAY = 3000
 
 const { spawnSync } = require('child_process')
@@ -9,18 +14,18 @@ let wsLib
 try {
     wsLib = require('ws')
 } catch (e) {
-    console.log('[INFO] Module "ws" absent, installation automatique...')
+    console.log('[INFO] ‘ws’ module missing, automatic installation...')
     const res = spawnSync(
         process.platform.startsWith('win') ? 'npm.cmd' : 'npm',
         ['install', 'ws'],
         { stdio: 'inherit' }
     )
     if (res.status !== 0) {
-        console.error("[ERREUR] Impossible d'installer le module ws.")
+        console.error("[ERROR] Failed to install the ws module.")
         process.exit(1)
     }
-    console.log('[OK] Module "ws" installé.')
-    console.log('[INFO] Veuillez relancer ce script : node client.js')
+    console.log('[OK] ‘ws’ module installed.')
+    console.log('[INFO] Please restart this script: node client.js')
     process.exit(0)
 }
 
@@ -28,10 +33,33 @@ const WebSocket = wsLib
 const net = require('net')
 const http = require('http')
 const https = require('https')
+const crypto = require('crypto')
+
+const KEY = Buffer.from(AES_KEY_HEX, 'hex')
+const ALGO = 'aes-256-gcm'
+const IV_LEN = 12
+const TAG_LEN = 16
+
+function encrypt(plainBuf) {
+    const iv = crypto.randomBytes(IV_LEN)
+    const cipher = crypto.createCipheriv(ALGO, KEY, iv)
+    const encrypted = Buffer.concat([cipher.update(plainBuf), cipher.final()])
+    const tag = cipher.getAuthTag()
+    return Buffer.concat([iv, encrypted, tag])
+}
+
+function decrypt(payloadBuf) {
+    const iv = payloadBuf.slice(0, IV_LEN)
+    const tag = payloadBuf.slice(-TAG_LEN)
+    const enc = payloadBuf.slice(IV_LEN, -TAG_LEN)
+    const decipher = crypto.createDecipheriv(ALGO, KEY, iv)
+    decipher.setAuthTag(tag)
+    return Buffer.concat([decipher.update(enc), decipher.final()])
+}
 
 const localSockets = new Map()
 
-// --- Handler proxy HTTP/HTTPS ---
+// Handler proxy HTTP/HTTPS
 function handleProxyHTTP(reqId, req, ws) {
     const options = {
         hostname: LOCAL_HOST,
@@ -60,7 +88,7 @@ function handleProxyHTTP(reqId, req, ws) {
     proxyReq.end()
 }
 
-// --- Handler TCP brut (MC, SSH, etc.) ---
+// Handler TCP brut (MC, SSH, etc.)
 class LocalTunnel {
     constructor(clientId, ws, payload) {
         this.clientId = clientId
@@ -74,13 +102,17 @@ class LocalTunnel {
         this.socket = net.connect(LOCAL_PORT, LOCAL_HOST)
         this.socket.on('connect', () => {
             localSockets.set(this.clientId, this.socket)
-            this.socket.write(Buffer.from(this.payload, 'base64'))
+            try {
+                this.socket.write(decrypt(Buffer.from(this.payload, 'base64')))
+            } catch (e) {
+                console.log('[ERROR] Initial decryption failed:', e)
+            }
         })
         this.socket.on('data', chunk => {
             if (this.ws.readyState === 1) {
                 this.ws.send(JSON.stringify({
                     id: this.clientId,
-                    data: chunk.toString('base64')
+                    data: encrypt(chunk).toString('base64')
                 }))
             }
         })
@@ -112,20 +144,25 @@ function handleWSMessage(msg, ws) {
     const socket = localSockets.get(id)
     if (!socket)
         new LocalTunnel(id, ws, data)
-    else if (!socket.destroyed)
-        socket.write(Buffer.from(data, 'base64'))
+    else if (!socket.destroyed) {
+        try {
+            socket.write(decrypt(Buffer.from(data, 'base64')))
+        } catch (e) {
+            console.log('[ERR] Déchiffrement échoué :', e)
+        }
+    }
 }
 
 function connectWS() {
     const ws = new WebSocket(REMOTE_WS_URL)
     ws.on('open', () => {
-        console.log('Tunnel WS connecté')
+        console.log('The WS tunnel is connected.')
     })
     ws.on('message', msg => {
         handleWSMessage(msg, ws)
     })
     ws.on('close', () => {
-        console.log('Tunnel fermé, reconnexion dans 5s')
+        console.log('Tunnel closed, reconnecting in 5 seconds.')
         for (const sock of localSockets.values())
             sock.destroy()
         localSockets.clear()
@@ -138,12 +175,35 @@ function connectWS() {
 connectWS()
 `
 
+// Récup le token + clé dans .env
+function getTunnelToken() {
+    try {
+        const envPath = path.resolve(__dirname, '../.env')
+        if (!fs.existsSync(envPath)) return null
+        const envContent = fs.readFileSync(envPath, 'utf-8')
+        const match = envContent.match(/^TUNNEL_TOKEN=(.+)$/m)
+        return match ? match[1].trim() : null
+    } catch {
+        return null
+    }
+}
+
 exports.handle = (req, res) => {
+    const token = getTunnelToken()
+    if (!token) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' })
+        return res.end('Tunnel token not configured. Please restart the server.')
+    }
+
     const proto = req.headers['x-forwarded-proto'] || (req.connection.encrypted ? 'https' : 'http')
     const host = req.headers['host']
     const wsProto = proto === 'https' ? 'wss' : 'ws'
-    const wsUrl = `${wsProto}://${host}/tunnel`
-    const jsFinal = jsTemplate.replace('REPLACE_ME_REMOTE_WS_URL', wsUrl)
+    const wsUrl = `${wsProto}://${host}/tunnel?token=${token}`
+
+    const jsFinal = jsTemplate
+        .replace('REPLACE_ME_REMOTE_WS_URL', wsUrl)
+        .replace('REPLACE_ME_AES_KEY', TUNNEL_AES_KEY)
+
     res.writeHead(200, {
         'Content-Type': 'application/javascript',
         'Content-Disposition': 'attachment; filename="client.js"'
