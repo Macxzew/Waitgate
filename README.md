@@ -92,6 +92,8 @@ Edit the `.env` file to customize.
 - **Strong authentication for both dashboard and tunnel.**
 - **No admin/tunnel secret is ever stored client-side.**
 
+> ⚠️ Waitgate never converts, upgrades, or auto-secures traffic (no “magic” TLS/HTTPS/SSL). Everything is tunneled as-is, protocol-agnostic, and under your full control. If you expose HTTP, users get HTTP. If you expose HTTPS, users get HTTPS. client.js runs locally—no public port, no proxy, no forced HTTPS, no auto-cert. All protocol logic and certificates are managed by your backend only, not by Waitgate. Waitgate never modifies, parses, or inspects traffic—it just relays encrypted data, byte-for-byte, between endpoints. No hidden behavior, no middlebox logic, no “intelligent” upgrade. What you put in is exactly what comes out, secured end-to-end with your AES key.
+
 ---
 
 ## 📦 Project structure
