@@ -8,7 +8,11 @@
 
 > Waitgate is a fully self-hosted, secure reverse proxy tunnel, designed to expose any local service (HTTP, HTTPS, raw TCP, SSH, RDP, etc.) without ever directly exposing a public IP or port. All application data is encrypted client-side (AES-GCM) before being sent through the WebSocket tunnel (WS or WSS, HTTP or HTTPS). Modern admin dashboard, only one port to open, security and simplicity first.
 
-<center><a href="https://waitgate.onrender.com/"><img alt="Waitgate UI" src="./assets/ui.png" width="650"/></a></center>
+<p align="center">
+  <a href="https://waitgate.onrender.com/">
+    <img alt="Waitgate UI" src="./assets/ui.png" width="650"/>
+  </a>
+</p>
 
 ---
 
@@ -119,7 +123,7 @@ waitgate/
 - **Secure remote raw TCP access (shell, RDP, local proxy, etc.).**
 - **Create a temporary, secured TCP bastion to a specific port.**
 
-<center><img alt="Waitgate UI" src="./assets/ex.png" width="650"/></center>
+<img alt="Waitgate UI" src="./assets/ex.png" width="650"/>
 
 ---
 
