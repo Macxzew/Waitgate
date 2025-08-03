@@ -63,6 +63,7 @@ saveEnv(env)
 // Info optionnel
 console.log('[INFO] DASH_USER      =', env.DASH_USER)
 console.log('[INFO] DASH_PASS      =', env.DASH_PASS)
+console.log('[INFO] TUNNEL_TOKEN   =', env.TUNNEL_TOKEN)
 console.log('[INFO] LOGIN_SECRET   =', env.LOGIN_SECRET)
 
 // Exporte les valeurs prêtes à l’emploi
