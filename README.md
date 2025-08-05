@@ -18,7 +18,7 @@
 
 ## ✨ Features
 
-- 🔒 End-to-end encryption: Every payload is ChaCha20-Poly1305 encrypted before transmission, even on plain WS/HTTP (nothing travels in cleartext)
+- 🔒 Even on HTTP, everything’s already ChaCha20-Poly1305 encrypted. Nothing’s in cleartext.
 - 🕳️ Bypass NAT/firewall via outgoing tunnels
 - 🖥️ Expose any TCP or raw TCP service securely (HTTP, HTTPS, SSH, RDP, etc.)
 - 🌐 Transparent reverse proxy for HTTP/HTTPS
