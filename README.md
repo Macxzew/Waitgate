@@ -26,7 +26,6 @@
 - 🔧 Secured admin dashboard (login encrypted client-side)
 - 🔑 Tunnel authentication via token + user/pass
 - 📦 Auto-generated client.js script
-- 🔥 No heavy dependencies (pure Node.js, no SQL)
 - 👁️ Real-time view of connected users
 - 👤 Self-hosted, open source
 
