@@ -1,50 +1,71 @@
-const { encrypt } = require('./crypto-utils') // <-- à ajouter
+// core/tcp-tunnel.js
+import { encrypt } from "./crypto-utils.js";
 
-let nextId = 1
-const clientBuffers = new Map()
+let nextId = 1;
+const clientBuffers = new Map();
 
-function forward(socket, firstBuffer, wsTunnel, tcpClients) {
-    const clientId = nextId++
-    tcpClients.set(clientId, socket)
-    clientBuffers.set(clientId, firstBuffer) // stocke le 1er buffer
+const MAX_INIT_BUFFER = 256 * 1024; // 256 Ko max first buffer
+const INIT_TIMEOUT = 30000; // 30s max d'inactivité sur init
 
-    // Timer pour envoyer le buffer après 50 ms
+export function forward(socket, firstBuffer, wsTunnel, tcpClients) {
+    const clientId = nextId++;
+    tcpClients.set(clientId, socket);
+
+    let totalInitBuffer = firstBuffer.length;
+    clientBuffers.set(clientId, firstBuffer);
+
+    // Timer pour envoyer buffer après 50 ms
     const timer = setTimeout(() => {
-        const buffered = clientBuffers.get(clientId)
-        if (!buffered) return
+        const buffered = clientBuffers.get(clientId);
+        if (!buffered) return;
         wsTunnel.send(JSON.stringify({
             id: clientId,
-            data: encrypt(buffered).toString('base64')
-        }))
-        clientBuffers.delete(clientId)
-    }, 50)
+            data: encrypt(buffered).toString("base64"),
+        }));
+        clientBuffers.delete(clientId);
+    }, 50);
 
-    socket.on('data', chunk => {
-        if (wsTunnel.readyState !== 1) return
+    // Timeout anti-idle sur socket
+    const idleTimeout = setTimeout(() => {
+        socket.destroy();
+        clientBuffers.delete(clientId);
+        tcpClients.delete(clientId);
+        clearTimeout(timer);
+    }, INIT_TIMEOUT);
 
+    socket.on("data", (chunk) => {
+        clearTimeout(idleTimeout); // reset timeout à chaque data
+        // Limite stricte sur le buffer initial
         if (clientBuffers.has(clientId)) {
-            // Concatène dans le buffer avant l'envoi
-            clientBuffers.set(clientId, Buffer.concat([clientBuffers.get(clientId), chunk]))
+            totalInitBuffer += chunk.length;
+            if (totalInitBuffer > MAX_INIT_BUFFER) {
+                socket.destroy();
+                clientBuffers.delete(clientId);
+                tcpClients.delete(clientId);
+                clearTimeout(timer);
+                return;
+            }
+            clientBuffers.set(
+                clientId,
+                Buffer.concat([clientBuffers.get(clientId), chunk])
+            );
         } else {
-            // Envoi direct après premier buffer envoyé
-            wsTunnel.send(JSON.stringify({
-                id: clientId,
-                data: encrypt(chunk).toString('base64')
-            }))
+            wsTunnel.send(
+                JSON.stringify({
+                    id: clientId,
+                    data: encrypt(chunk).toString("base64"),
+                })
+            );
         }
-    })
+    });
 
-    socket.on('close', () => {
-        tcpClients.delete(clientId)
-        clientBuffers.delete(clientId)
-        clearTimeout(timer)
-    })
+    function cleanup() {
+        tcpClients.delete(clientId);
+        clientBuffers.delete(clientId);
+        clearTimeout(timer);
+        clearTimeout(idleTimeout);
+    }
 
-    socket.on('error', err => {
-        tcpClients.delete(clientId)
-        clientBuffers.delete(clientId)
-        clearTimeout(timer)
-    })
+    socket.on("close", cleanup);
+    socket.on("error", cleanup);
 }
-
-module.exports = { forward }

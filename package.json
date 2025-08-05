@@ -1,8 +1,10 @@
 {
-    "name": "waitgate",
-    "version": "1.0.0",
-    "main": "server.js",
-    "dependencies": {
-        "ws": "^8.0.0"
-    }
+  "name": "waitgate",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "dependencies": {
+    "ws": "^8.0.0",
+    "@stablelib/chacha20poly1305": "^2.0.1"
+  }
 }

@@ -6,7 +6,7 @@
   </a>
 </p>
 
-> Waitgate is a fully self-hosted, secure reverse proxy tunnel, designed to expose any local service (HTTP, HTTPS, raw TCP, SSH, RDP, etc.) without ever directly exposing a public IP or port. All application data is encrypted client-side (AES-GCM) before being sent through the WebSocket tunnel (WS or WSS, HTTP or HTTPS). Modern admin dashboard, only one port to open, security and simplicity first.
+> Waitgate is a fully self-hosted, secure reverse proxy tunnel, designed to expose any local service (HTTP, HTTPS, raw TCP, SSH, RDP, etc.) without ever directly exposing a public IP or port. All application data is encrypted client-side (ChaCha20-Poly1305) before being sent through the WebSocket tunnel (WS or WSS, HTTP or HTTPS). Modern admin dashboard, only one port to open, security and simplicity first.
 
 <p align="center">
   <a href="https://waitgate.onrender.com/">
@@ -18,7 +18,7 @@
 
 ## ✨ Features
 
-- 🔒 End-to-end encryption: Every payload is AES-256-GCM encrypted before transmission, even on plain WS/HTTP (nothing travels in cleartext)
+- 🔒 End-to-end encryption: Every payload is ChaCha20-Poly1305 encrypted before transmission, even on plain WS/HTTP (nothing travels in cleartext)
 - 🕳️ Bypass NAT/firewall via outgoing tunnels
 - 🖥️ Expose any TCP or raw TCP service securely (HTTP, HTTPS, SSH, RDP, etc.)
 - 🌐 Transparent reverse proxy for HTTP/HTTPS
@@ -76,7 +76,7 @@ node client.js
 
 ## 🧰 Environment variables (.env)
 
-- `TUNNEL_AES_KEY` : AES encryption key (256 bits, auto-generated)
+- `TUNNEL_CHACHA_KEY` : ChaCha20-Poly1305 encryption key (256 bits, auto-generated)
 - `TUNNEL_TOKEN` : Tunnel connection token (wgt_ prefix, auto-generated)
 - `DASH_USER` / `DASH_PASS` : Admin credentials
 - `LOGIN_SECRET` : Password encryption key for dashboard login
@@ -87,12 +87,12 @@ Edit the `.env` file to customize.
 
 ## 🔐 Security
 
-- **AES-256-GCM application-level encryption** : All buffers are encrypted before being sent through the tunnel (WS, WSS, HTTP, HTTPS). Even on plain HTTP/WS, your data is not readable without the AES key.
+- **ChaCha20-Poly1305 application-level encryption** : All buffers are encrypted before being sent through the tunnel (WS, WSS, HTTP, HTTPS). Even on plain HTTP/WS, your data is not readable without the ChaCha20 key.
 - **No public port required on the client side** (outgoing only).
 - **Strong authentication for both dashboard and tunnel.**
 - **No admin/tunnel secret is ever stored client-side.**
 
-> ⚠️ **Waitgate does not require HTTPS/TLS or any proxy on its own port. Only the service you want to expose needs to handle HTTPS/TLS if required (for ex: if you expose a web server with HTTPS, it’s your web server that must serve HTTPS, not Waitgate). Waitgate simply tunnels all traffic as-is. Every message is individually AES-encrypted client-side before entering the tunnel. If you run Waitgate behind a reverse proxy (Nginx, Caddy, etc.), only HTTP services can be exposed; raw TCP will not work through the tunnel.**
+> ⚠️ **Waitgate does not require HTTPS/TLS or any proxy on its own port. Only the service you want to expose needs to handle HTTPS/TLS if required (for ex: if you expose a web server with HTTPS, it’s your web server that must serve HTTPS, not Waitgate). Waitgate simply tunnels all traffic as-is. Every message is individually ChaCha20-encrypted client-side before entering the tunnel. If you run Waitgate behind a reverse proxy (Nginx, Caddy, etc.), only HTTP services can be exposed; raw TCP will not work through the tunnel.**
 
 ---
 
@@ -101,7 +101,7 @@ Edit the `.env` file to customize.
 ```
 waitgate/
 ├─ core/
-│  ├─ crypto-utils.js      # AES encryption/decryption
+│  ├─ crypto-utils.js      # ChaCha20-Poly1305 encryption/decryption
 │  ├─ tcp-tunnel.js        # TCP tunnel logic
 │  └─ ws-handler.js        # WebSocket handler
 ├─ routes/

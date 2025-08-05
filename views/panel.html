@@ -1,3 +1,4 @@
+<!-- views/panel.html -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -238,8 +239,12 @@
     const ctx = canvas.getContext('2d')
     let stars = [], shootingStars = []
     function resizeCanvas() {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
+        const ratio = window.devicePixelRatio > 1 ? 0.5 : 1;
+        canvas.width = window.innerWidth * ratio;
+        canvas.height = window.innerHeight * ratio;
+        canvas.style.width = window.innerWidth + "px";
+        canvas.style.height = window.innerHeight + "px";
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0); // upscale le dessin
     }
     function rand(a, b) { return a + Math.random() * (b - a) }
     function createStars() {
@@ -276,7 +281,7 @@
         ctx.arc(s.x, s.y, s.r, 0, Math.PI*2)
         ctx.fillStyle = "#e4e6ff"
         ctx.shadowColor = "#8a5cff"
-        ctx.shadowBlur = 6
+        ctx.shadowBlur = 4
         ctx.fill()
         ctx.restore()
       }
@@ -286,7 +291,7 @@
         ctx.globalAlpha = Math.max(0, s.alpha)
         ctx.strokeStyle = "#8a5cffcc"
         ctx.shadowColor = "#8a5cff"
-        ctx.shadowBlur = 15
+        ctx.shadowBlur = 8
         ctx.beginPath()
         ctx.moveTo(s.x, s.y)
         ctx.lineTo(s.x - s.vx*s.len/14, s.y - s.vy*s.len/28)
