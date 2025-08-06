@@ -21,3 +21,11 @@ export function decrypt(payloadBuf) {
     if (!plain) throw new Error("ChaCha20-Poly1305: Authentication failed (bad key, nonce or data)");
     return Buffer.from(plain);
 }
+
+export function encryptForDownload(plainBuf, base64Key) {
+    const key = Buffer.from(base64Key, "base64");
+    const nonce = crypto.randomBytes(NONCE_LENGTH);
+    const chacha = new ChaCha20Poly1305(key);
+    const encrypted = chacha.seal(nonce, Buffer.from(plainBuf));
+    return Buffer.concat([nonce, Buffer.from(encrypted)]);
+}

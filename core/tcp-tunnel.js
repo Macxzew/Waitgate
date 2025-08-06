@@ -5,7 +5,7 @@ let nextId = 1;
 const clientBuffers = new Map();
 
 const MAX_INIT_BUFFER = 256 * 1024; // 256 Ko max first buffer
-const INIT_TIMEOUT = 30000; // 30s max d'inactivité sur init
+const INIT_TIMEOUT = 30000; // 30s max d'inactivité
 
 export function forward(socket, firstBuffer, wsTunnel, tcpClients) {
     const clientId = nextId++;
@@ -14,7 +14,7 @@ export function forward(socket, firstBuffer, wsTunnel, tcpClients) {
     let totalInitBuffer = firstBuffer.length;
     clientBuffers.set(clientId, firstBuffer);
 
-    // Timer pour envoyer buffer après 50 ms
+    // Timer buffer après 50 ms
     const timer = setTimeout(() => {
         const buffered = clientBuffers.get(clientId);
         if (!buffered) return;
@@ -35,7 +35,7 @@ export function forward(socket, firstBuffer, wsTunnel, tcpClients) {
 
     socket.on("data", (chunk) => {
         clearTimeout(idleTimeout); // reset timeout à chaque data
-        // Limite stricte sur le buffer initial
+        // Limite sur le buffer initial
         if (clientBuffers.has(clientId)) {
             totalInitBuffer += chunk.length;
             if (totalInitBuffer > MAX_INIT_BUFFER) {

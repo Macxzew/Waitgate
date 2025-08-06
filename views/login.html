@@ -191,14 +191,28 @@
             font-size: 1.13rem;
             font-weight: 700;
             cursor: pointer;
-            box-shadow: 0 2px 14px #26264b44;
+            box-shadow: 0 2px 18px #6a73f733, 0 1px 4px #2d183833;
             margin-top: 1.2em;
             margin-bottom: .3em;
-            transition: background .15s;
+            position: relative;
+            overflow: hidden;
+            transition:
+                background 0.22s cubic-bezier(.68,-0.55,.27,1.55),
+                filter 0.19s,
+                box-shadow 0.28s,
+                transform 0.18s;
+            animation: btn-glow-pulse 2.7s ease-in-out infinite alternate;
         }
-
-        .submit:hover {
-            background: linear-gradient(90deg, #8a5cff, #6a73f7);
+        @keyframes btn-glow-pulse {
+            0%, 100% { box-shadow: 0 2px 18px #8a5cff33, 0 1px 4px #2d183833; }
+            60% { box-shadow: 0 4px 36px #8a5cff66, 0 1px 8px #6a73f788; }
+        }
+        .submit:hover,
+        .submit:focus-visible {
+            background: linear-gradient(90deg, #6a73f7 60%, #8a5cff 100%);
+            filter: brightness(1.04);
+            box-shadow: 0 7px 40px #8a5cff55, 0 2px 12px #2d183855;
+            transform: translateY(-1.5px) scale(1.017);
         }
 
         .error {
@@ -235,6 +249,10 @@
         <div class="field">
             <input class="input" type="password" name="p" autocomplete="current-password" placeholder="Password"
                 required>
+        </div>
+        <div class="field" id="field-tfa" style="display:none">
+            <input class="input" type="text" name="tfa" id="input-tfa" maxlength="6" pattern="[0-9]*"
+                placeholder="Code 2FA" autocomplete="one-time-code" inputmode="numeric">
         </div>
         <button class="submit">Log in</button>
         <div class="error" id="err"></div>
@@ -344,22 +362,46 @@
             full.set(encrypted, nonce.length);
             return uint8ToBase64(full);
         }
+        fetch('/api/tfa-setup')
+        .then(r => r.json())
+        .then(d => {
+            if (d.enabled) {
+                document.getElementById('field-tfa').style.display = "";
+                document.getElementById('input-tfa').required = true;
+            }
+        });
+
         window.encryptPassword = encryptPassword;
         window.doLogin = async function doLogin(e) {
             e.preventDefault();
             const u = document.querySelector('[name="u"]').value;
             const p = document.querySelector('[name="p"]').value;
-            const encryptedPass = await window.encryptPassword(p, window._loginKey);
+            const tfa = document.querySelector('[name="tfa"]')?.value || null;
+            const key = window._loginKey;
+
+            // Chiffrement
+            const encryptedUser = await window.encryptPassword(u, key);
+            const encryptedPass = await window.encryptPassword(p, key);
+            let data = { u: encryptedUser, p: encryptedPass };
+
+            if (tfa) {
+                data.tfa = await window.encryptPassword(tfa, key);
+            }
+
             fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ u, p: encryptedPass })
+                body: JSON.stringify(data)
             }).then(r => r.json()).then(j => {
                 if (j.ok) window.location = '/dashboard';
-                else document.getElementById('err').innerText = "Incorrect logins.";
+                else if (j.tfa)
+                    document.getElementById('err').innerText = "Identifiants incorrects.";
+                else
+                    document.getElementById('err').innerText = "Identifiants incorrects.";
             });
             return false;
         }
+
     </script>
 </body>
 

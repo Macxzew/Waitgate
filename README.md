@@ -18,16 +18,16 @@
 
 ## ✨ Features
 
-- 🔒 Even on HTTP, everything’s already ChaCha20-Poly1305 encrypted. Nothing’s in cleartext.
-- 🕳️ Bypass NAT/firewall via outgoing tunnels
-- 🖥️ Expose any TCP or raw TCP service securely (HTTP, HTTPS, SSH, RDP, etc.)
-- 🌐 Transparent reverse proxy for HTTP/HTTPS
-- ⚙️ Single public port (web + TCP over the same port)
-- 🔧 Secured admin dashboard (login encrypted client-side)
-- 🔑 Tunnel authentication via token + user/pass
-- 📦 Auto-generated client.js script
-- 👁️ Real-time view of connected users
-- 👤 Self-hosted, open source
+- 🔒 End-to-end ChaCha20-Poly1305 encryption (all traffic: dashboard, HTTP & raw TCP)
+- 🛡️ 2FA (TOTP) for dashboard login
+- 🚦 Brute-force protection
+- 🕳️ NAT/firewall bypass (outgoing only)
+- 🖥️ Expose any TCP service (HTTP, SSH, RDP…)
+- 🌐 HTTP/HTTPS reverse proxy
+- ⚙️ Single public port (dashboard & tunnel share the same port)
+- 📦 Auto-generated, encrypted client.js
+- 👁️ Real-time connected users
+- 👤 Self-hosted & open source
 
 ---
 
