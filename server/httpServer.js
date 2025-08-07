@@ -16,7 +16,7 @@ export function createHttpServer(wsTunnelRef, tcpClients) {
       return res.end("Too many requests, try again later.\n");
     }
 
-    const INTERNAL_API = [
+    const WAITGATE_API_ROUTES = [
         "/api/login",
         "/api/logout",
         "/api/tfa-setup",
@@ -25,14 +25,11 @@ export function createHttpServer(wsTunnelRef, tcpClients) {
         "/api/wait-tunnel"
     ];
 
-    // Routes Dashboard & API
+    // Routes Dashboard & API Waitgate seulement
     if (
-    req.url === "/dashboard" ||
-    req.url === "/download" ||
-    (
-        req.url.startsWith("/api/") &&
-        INTERNAL_API.includes(req.url)
-    )
+        req.url === "/dashboard" ||
+        req.url === "/download" ||
+        WAITGATE_API_ROUTES.includes(req.url)
     ) {
         dashboard.handle(req, res, { wsTunnel: wsTunnelRef.wsTunnel, tcpClients });
         return;
