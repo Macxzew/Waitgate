@@ -4,7 +4,7 @@ import path from "path";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
-import { DASH_USER, DASH_PASS, LOGIN_SECRET, TUNNEL_CHACHA_KEY  } from "../config.js";
+import { DASH_USER, DASH_PASS, LOGIN_SECRET, TUNNEL_CHACHA_KEY } from "../config.js";
 import { authenticator } from "otplib";
 import { encrypt } from "../core/crypto-utils.js";
 
@@ -36,11 +36,37 @@ const loginHtml = rawLoginHtml.replace(
     Buffer.from(LOGIN_SECRET, "hex").toString("base64")
 );
 
-let sessionActive = false;
+// --- SESSIONS EN MÉMOIRE PAR COOKIE ---
+const SESSIONS = new Map(); // sessionId (hex) => { created }
+const SESSION_COOKIE_NAME = "waitgate_session";
+const SESSION_TTL = 30 * 60 * 1000; // 30 min
 
-// Déchiffrement
+function generateSessionId() {
+    return crypto.randomBytes(32).toString("hex");
+}
+function makeSessionCookie(sessionId) {
+    return `${SESSION_COOKIE_NAME}=${sessionId}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL / 1000}`;
+}
+function getSessionId(req) {
+    const cookieHeader = req.headers.cookie || "";
+    const cookies = Object.fromEntries(
+        cookieHeader.split(";").map(c => c.trim().split("=", 2))
+    );
+    return cookies[SESSION_COOKIE_NAME];
+}
+function isSessionValid(sessionId) {
+    const entry = SESSIONS.get(sessionId);
+    if (!entry) return false;
+    if (Date.now() - entry.created > SESSION_TTL) {
+        SESSIONS.delete(sessionId);
+        return false;
+    }
+    entry.created = Date.now(); // Rafraîchissement auto
+    return true;
+}
+
+// --- Déchiffrement mot de passe ---
 function decryptPass(encryptedB64, secret) {
-    // secret
     let key;
     if (/^[0-9a-f]{64}$/i.test(secret)) {
         key = Buffer.from(secret, "hex");
@@ -48,28 +74,14 @@ function decryptPass(encryptedB64, secret) {
         key = Buffer.from(secret, "base64");
     }
     const input = Buffer.from(encryptedB64, "base64");
-    const nonce = input.slice(0, 12);                // 12 bytes
-    const ciphertextAndTag = input.slice(12);        // data + tag
-    const tag = ciphertextAndTag.slice(-16);         // 16 bytes
+    const nonce = input.slice(0, 12);
+    const ciphertextAndTag = input.slice(12);
+    const tag = ciphertextAndTag.slice(-16);
     const ciphertext = ciphertextAndTag.slice(0, -16);
     const decipher = crypto.createDecipheriv("chacha20-poly1305", key, nonce, { authTagLength: 16 });
     decipher.setAuthTag(tag);
     const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
     return decrypted.toString();
-}
-
-// Encrypt ChaCha20-Poly1305 POST
-function encryptTfaPayload(obj) {
-    const key = base64ToUint8(window._loginKey);
-    const nonce = window.crypto.getRandomValues(new Uint8Array(12));
-    const plain = new TextEncoder().encode(JSON.stringify(obj));
-    const chacha = new ChaCha20Poly1305(key);
-    const ct = chacha.seal(nonce, plain);
-    // Concatène nonce + ct (Uint8Array)
-    const out = new Uint8Array(nonce.length + ct.length);
-    out.set(nonce, 0);
-    out.set(ct, nonce.length);
-    return out;
 }
 
 export function decrypt(buf) {
@@ -99,7 +111,6 @@ function getTotpConfig() {
 }
 
 function updateTOTPConfig(enabled, secret) {
-    // Charge .env
     let env = {};
     if (fs.existsSync(ENV_PATH)) {
         env = Object.fromEntries(
@@ -113,7 +124,6 @@ function updateTOTPConfig(enabled, secret) {
     }
     env.TOTP_ENABLED = enabled ? "true" : "false";
     env.TOTP_SECRET = secret || "";
-    // Écrase .env
     fs.writeFileSync(
         ENV_PATH,
         Object.entries(env)
@@ -141,8 +151,6 @@ function renderPanel(ctx) {
         );
 }
 
-
-
 // Handler principal
 export function handle(req, res, ctx) {
     const tcpClientsSafe = ctx.tcpClients || new Map();
@@ -164,18 +172,22 @@ export function handle(req, res, ctx) {
     }
 
     if (req.url === "/dashboard") {
-        res.writeHead(200, { "Content-Type": "text/html" });
-        return res.end(sessionActive ? renderPanel(ctx) : loginHtml);
+        const sessionId = getSessionId(req);
+        if (isSessionValid(sessionId)) {
+            res.writeHead(200, { "Content-Type": "text/html" });
+            return res.end(renderPanel(ctx));
+        } else {
+            res.writeHead(200, { "Content-Type": "text/html" });
+            return res.end(loginHtml);
+        }
     }
 
     if (req.url === "/api/login" && req.method === "POST") {
         const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-        // Init tracking
         if (!loginAttempts.has(ip)) {
             loginAttempts.set(ip, { count: 0, blockedUntil: 0 });
         }
         const entry = loginAttempts.get(ip);
-        // Si bloqué -> refuse direct
         if (entry.blockedUntil && Date.now() < entry.blockedUntil) {
             res.writeHead(429, { "Content-Type": "application/json" });
             return res.end(JSON.stringify({ ok: 0, error: "Too many attempts. Try again later." }));
@@ -186,8 +198,6 @@ export function handle(req, res, ctx) {
             const { TOTP_ENABLED, TOTP_SECRET } = getTotpConfig();
             try {
                 const { u, p, tfa } = JSON.parse(body);
-
-                // Déchiffre tout
                 const decryptedUser = decryptPass(u, LOGIN_SECRET);
                 const decryptedPass = decryptPass(p, LOGIN_SECRET);
                 let decryptedTfa = null;
@@ -201,17 +211,18 @@ export function handle(req, res, ctx) {
                             return res.end(JSON.stringify({ ok: 0, tfa: true }));
                         }
                     }
-                    // SUCCÈS -> reset le compteur
                     entry.count = 0;
                     entry.blockedUntil = 0;
-                    sessionActive = true;
-                    res.writeHead(200, { "Content-Type": "application/json" });
+                    const sessionId = generateSessionId();
+                    SESSIONS.set(sessionId, { created: Date.now() });
+                    res.writeHead(200, {
+                        "Content-Type": "application/json",
+                        "Set-Cookie": makeSessionCookie(sessionId),
+                    });
                     return res.end(JSON.stringify({ ok: 1 }));
                 }
             } catch (err) {}
-            // Échec de login -> incrémente le compteur
             entry.count++;
-            // Si dépasse le max -> bloque
             if (entry.count >= MAX_ATTEMPTS) {
                 entry.blockedUntil = Date.now() + BLOCK_TIME_MS;
                 entry.count = 0;
@@ -233,7 +244,8 @@ export function handle(req, res, ctx) {
             }));
         }
 
-        if (!sessionActive) {
+        const sessionId = getSessionId(req);
+        if (!isSessionValid(sessionId)) {
             res.writeHead(401, { "Content-Type": "application/json" });
             return res.end(JSON.stringify({ error: "Not authenticated" }));
         }
@@ -287,9 +299,7 @@ export function handle(req, res, ctx) {
         return;
     }
 
-
-
-    // (Facultatif) /api/tfa-test inchangé
+    // /api/tfa-test inchangé
     if (req.url === "/api/tfa-test" && req.method === "POST") {
         let body = "";
         req.on("data", (chunk) => (body += chunk));
@@ -308,13 +318,18 @@ export function handle(req, res, ctx) {
     }
 
     if (req.url === "/api/logout" && req.method === "POST") {
-        sessionActive = false;
-        res.writeHead(200, { "Content-Type": "application/json" });
+        const sessionId = getSessionId(req);
+        if (sessionId) SESSIONS.delete(sessionId);
+        res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Set-Cookie": `${SESSION_COOKIE_NAME}=deleted; Path=/; Max-Age=0`,
+        });
         return res.end(JSON.stringify({ ok: 1 }));
     }
 
     if (req.url === "/download") {
-        if (!sessionActive) {
+        const sessionId = getSessionId(req);
+        if (!isSessionValid(sessionId)) {
             res.writeHead(401, { "Content-Type": "text/plain" });
             return res.end("Authentication required.");
         }
