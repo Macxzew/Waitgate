@@ -687,46 +687,63 @@
         setInterval(refreshStatus, 5000);
         refreshStatus();
 
-        // Etoiles + filantes (inchangé)
+        // Etoiles & étoiles filantes
         const canvas = document.getElementById('stars-canvas');
         const ctx = canvas.getContext('2d');
-        let stars = [], shootingStars = [];
-        function resizeCanvas() {
-            const ratio = window.devicePixelRatio > 1 ? 0.5 : 1;
-            canvas.width = window.innerWidth * ratio;
-            canvas.height = window.innerHeight * ratio;
-            canvas.style.width = window.innerWidth + "px";
-            canvas.style.height = window.innerHeight + "px";
+
+        let stars = [];
+        let shootingStars = [];
+        let starDensity = 120; // Nb d'étoiles
+
+        function updateCanvasSize() {
+            // Prend l'espace visible
+            let w = window.innerWidth, h = window.innerHeight;
+            // Ajuste pour éviter la barre URL qui cache le bas
+            if (/Mobi|Android/i.test(navigator.userAgent)) {
+                h = Math.max(h, document.documentElement.clientHeight, document.body.clientHeight);
+            }
+            // Haute densité
+            const ratio = Math.max(window.devicePixelRatio, 1);
+            canvas.width = Math.round(w * ratio);
+            canvas.height = Math.round(h * ratio);
+            canvas.style.width = w + "px";
+            canvas.style.height = h + "px";
             ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
         }
-        function rand(a, b) { return a + Math.random() * (b - a); }
+
         function createStars() {
+            // Adapte à la taille de l'écran
+            const w = canvas.width / Math.max(window.devicePixelRatio, 1);
             stars = [];
-            for (let i = 0; i < 120; i++) {
+            for (let i = 0; i < Math.round(w / 1000 * starDensity); i++) {
                 stars.push({
                     x: Math.random() * canvas.width,
                     y: Math.random() * canvas.height,
-                    r: rand(0.3, 1.10),
-                    o: rand(0.45, 0.88),
-                    tw: rand(0, Math.PI * 2)
+                    r: Math.random() * 1.1 + 0.2,
+                    o: Math.random() * 0.5 + 0.5,
+                    tw: Math.random() * Math.PI * 2
                 });
             }
         }
+
         function createShootingStar() {
-            if (Math.random() > 0.986) {
+            if (shootingStars.length < 2 && Math.random() > 0.985) {
                 const side = Math.random() > 0.5 ? 0 : canvas.width;
                 shootingStars.push({
                     x: side,
-                    y: rand(40, canvas.height * 0.7),
-                    vx: side === 0 ? rand(5, 10) : -rand(5, 10),
-                    vy: rand(-2, 2),
-                    len: rand(110, 220),
-                    alpha: 1.09
+                    y: Math.random() * canvas.height * 0.7 + 40,
+                    vx: side === 0 ? Math.random() * 5 + 6 : -Math.random() * 5 - 6,
+                    vy: Math.random() * 4 - 2,
+                    len: Math.random() * 120 + 120,
+                    alpha: 1.1
                 });
             }
         }
+
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Etoiles fixes
             for (let s of stars) {
                 ctx.save();
                 ctx.globalAlpha = s.o * (0.5 + 0.5 * Math.sin(Date.now() / 1200 + s.tw));
@@ -738,6 +755,8 @@
                 ctx.fill();
                 ctx.restore();
             }
+
+            // Etoiles filantes
             for (let i = shootingStars.length - 1; i >= 0; i--) {
                 let s = shootingStars[i];
                 ctx.save();
@@ -759,12 +778,19 @@
                 if (s.x < -300 || s.x > canvas.width + 300 || s.alpha <= 0)
                     shootingStars.splice(i, 1);
             }
+
             createShootingStar();
             requestAnimationFrame(draw);
         }
-        window.addEventListener('resize', () => { resizeCanvas(); createStars(); });
-        resizeCanvas();
-        createStars();
+
+        function resetStars() {
+            updateCanvasSize();
+            createStars();
+        }
+
+        window.addEventListener('resize', resetStars);
+        window.addEventListener('orientationchange', () => setTimeout(resetStars, 80));
+        resetStars();
         draw();
     </script>
 </body>
