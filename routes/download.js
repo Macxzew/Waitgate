@@ -160,27 +160,41 @@ function handleWSMessage(msg, ws) {
     }
 }
 
+function getPublicIp(cb) {
+    // Utilise un service public pour détecter l’IP WAN
+    http.get('http://api.ipify.org', res => {
+        let ip = '';
+        res.on('data', chunk => ip += chunk);
+        res.on('end', () => cb(ip.trim()));
+    }).on('error', () => cb(null));
+}
+
 function connectWS() {
-    const ws = new WebSocket(REMOTE_WS_URL, {
-        headers: {
-            "Authorization": \`Bearer \${TUNNEL_TOKEN}\`
-        }
-    })
-    ws.on('open', () => {
-        console.log('The WS tunnel is connected.')
-    })
-    ws.on('message', msg => {
-        handleWSMessage(msg, ws)
-    })
-    ws.on('close', () => {
-        console.log('Tunnel closed, reconnecting in 5 seconds.')
-        for (const sock of localSockets.values())
-            sock.destroy()
-        localSockets.clear()
-        setTimeout(connectWS, 5000)
-    })
-    ws.on('error', () => {
-    })
+    getPublicIp(function(ip) {
+        const ws = new WebSocket(REMOTE_WS_URL, {
+            headers: {
+                "Authorization": \`Bearer \${TUNNEL_TOKEN}\`
+            }
+        });
+        ws.on('open', () => {
+            if (ip) {
+                ws.send(JSON.stringify({ type: "HELLO", ip }));
+            }
+            console.log('The WS tunnel is connected.');
+        });
+        ws.on('message', msg => {
+            handleWSMessage(msg, ws);
+        });
+        ws.on('close', () => {
+            console.log('Tunnel closed, reconnecting in 5 seconds.');
+            for (const sock of localSockets.values())
+                sock.destroy();
+            localSockets.clear();
+            setTimeout(connectWS, 5000);
+        });
+        ws.on('error', () => {
+        });
+    });
 }
 
 connectWS()

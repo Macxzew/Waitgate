@@ -21,16 +21,26 @@ dotenv.config();
 let globalBanActive = false;
 let globalBanTimeout = null;
 
-// Récup Whitelist d'IP via .env
+// Récup Whitelist d'IP via .env (statique)
 const whitelist = process.env.WHITELIST_IPS ? process.env.WHITELIST_IPS.split(',') : [];
+// Whitelist dynamique (en mémoire)
+const dynamicWhitelist = new Set();
 
 /**
- * Vérif IP appartient à Whitelist.
+ * Ajoute une IP à la whitelist dynamique (ne pas bannir ni limiter)
+ * @param {string} ip
+ */
+export function addDynamicWhitelist(ip) {
+    if (ip && !dynamicWhitelist.has(ip)) dynamicWhitelist.add(ip);
+}
+
+/**
+ * Vérif IP appartient à la whitelist (statique OU dynamique).
  * @param {string} ip
  * @returns {boolean}
  */
 function isWhitelisted(ip) {
-    return whitelist.includes(ip);
+    return whitelist.includes(ip) || dynamicWhitelist.has(ip);
 }
 
 /**

@@ -63,10 +63,13 @@ if (!env.TOTP_ENABLED) {
 if (!env.TOTP_SECRET) {
     env.TOTP_SECRET = "";
 }
-
 // WHITELIST_IPS
 if (!env.WHITELIST_IPS) {
     env.WHITELIST_IPS = "127.0.0.1,192.168.1.0/24";
+}
+// EXPOSER_IP
+if (env.EXPOSER_IP === undefined) {
+    env.EXPOSER_IP = "";
 }
 
 saveEnv(env);

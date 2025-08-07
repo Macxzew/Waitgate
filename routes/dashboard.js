@@ -65,6 +65,15 @@ function isSessionValid(sessionId) {
     return true;
 }
 
+function getExposerIpFromEnv() {
+    const ENV_PATH = path.resolve(process.cwd(), ".env");
+    if (!fs.existsSync(ENV_PATH)) return null;
+    const env = fs.readFileSync(ENV_PATH, "utf-8");
+    const m = env.match(/^EXPOSER_IP=(.+)$/m);
+    return m ? m[1].trim() : null;
+}
+
+
 // --- Déchiffrement mot de passe ---
 function decryptPass(encryptedB64, secret) {
     let key;
@@ -136,11 +145,8 @@ function updateTOTPConfig(enabled, secret) {
 function renderPanel(ctx) {
     const tcpClientsSafe = ctx.tcpClients || new Map();
     return renderedPanelHtml
-        .replace("{{TUNNEL_STATUS}}", ctx.wsTunnel ? "EN LIGNE" : "HORS LIGNE")
-        .replace(
-            "{{EXPOSER_IP}}",
-            ctx.wsTunnel ? ctx.wsTunnel._socket.remoteAddress : "-"
-        )
+        .replace("{{TUNNEL_STATUS}}", ctx.wsTunnel ? "ONLINE" : "OFFLINE")
+        .replace("{{EXPOSER_IP}}", ctx.exposerIp || (ctx.wsTunnel ? ctx.wsTunnel._socket.remoteAddress : "-"))
         .replace(
             "{{USER_IPS}}",
             Array.from(tcpClientsSafe.values()).length === 0
@@ -347,7 +353,7 @@ export function handle(req, res, ctx) {
         return res.end(
             JSON.stringify({
                 tunnel: !!ctx.wsTunnel,
-                exposerIp: ctx.wsTunnel ? ctx.wsTunnel._socket.remoteAddress : null,
+                exposerIp: ctx.exposerIp || getExposerIpFromEnv() || (ctx.wsTunnel ? ctx.wsTunnel._socket.remoteAddress : null),
                 userIps: Array.from(tcpClientsSafe.values()).map(
                     (sock) => sock.remoteAddress
                 ),

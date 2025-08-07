@@ -719,16 +719,21 @@
 
         // Rafraîchissement status live
         function refreshStatus() {
-            fetch('/api/status').then(r => r.json()).then(s => {
-                let chip = document.getElementById('status-chip');
-                chip.innerText = s.tunnel ? 'ONLINE' : 'OFFLINE';
-                chip.className = 'chip ' + (s.tunnel ? 'status-up' : 'status-down');
-                document.getElementById('ip-chip').innerText = s.exposerIp || '-';
-                let usersDiv = document.getElementById('users-list');
-                usersDiv.innerHTML = (s.userIps.length === 0)
-                    ? '<i style="opacity:.7;">Nobody</i>'
-                    : s.userIps.map(ip => `<span class="chip ip">${ip}</span>`).join(' ');
-            });
+            fetch('/api/status')
+                .then(r => r.json())
+                .then(s => {
+                    // Statut du tunnel
+                    let chip = document.getElementById('status-chip');
+                    chip.innerText = s.tunnel ? 'ONLINE' : 'OFFLINE';
+                    chip.className = 'chip ' + (s.tunnel ? 'status-up' : 'status-down');
+                    // IP exposée par le tunnel
+                    document.getElementById('ip-chip').innerText = s.exposerIp || '-';
+                    // Liste des utilisateurs connectés
+                    let usersDiv = document.getElementById('users-list');
+                    usersDiv.innerHTML = (s.userIps.length === 0)
+                        ? '<i style="opacity:.7;">Nobody</i>'
+                        : s.userIps.map(ip => `<span class="chip ip">${ip}</span>`).join(' ');
+                });
         }
         setInterval(refreshStatus, 5000);
         refreshStatus();
