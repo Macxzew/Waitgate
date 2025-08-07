@@ -16,14 +16,26 @@ export function createHttpServer(wsTunnelRef, tcpClients) {
       return res.end("Too many requests, try again later.\n");
     }
 
+    const INTERNAL_API = [
+        "/api/login",
+        "/api/logout",
+        "/api/tfa-setup",
+        "/api/tfa-test",
+        "/api/status",
+        "/api/wait-tunnel"
+    ];
+
     // Routes Dashboard & API
     if (
-      req.url === "/dashboard" ||
-      req.url === "/download" ||
-      req.url.startsWith("/api/")
+    req.url === "/dashboard" ||
+    req.url === "/download" ||
+    (
+        req.url.startsWith("/api/") &&
+        INTERNAL_API.includes(req.url)
+    )
     ) {
-      dashboard.handle(req, res, { wsTunnel: wsTunnelRef.wsTunnel, tcpClients });
-      return;
+        dashboard.handle(req, res, { wsTunnel: wsTunnelRef.wsTunnel, tcpClients });
+        return;
     }
 
     // Accueil / si pas de tunnel WS ouvert
