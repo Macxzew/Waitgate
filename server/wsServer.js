@@ -2,11 +2,8 @@
 import { getIp, checkRateLimit, addDynamicWhitelist } from "../core/rateLimiter.js";
 import { setExposerIpEnv, clearExposerIpEnv } from "../core/exposer-ip.js";
 
-// Vide l'IP exposée au démarrage
-clearExposerIpEnv();
-
 /**
- * Crée le SRV WS pour tunnel reverse.
+ * Crée le serveur WS (WS local ou WSS via reverse proxy type Render)
  * @param {string} TUNNEL_TOKEN
  * @param {WebSocketServer} wss
  * @param {object} wsTunnelRef
@@ -14,11 +11,18 @@ clearExposerIpEnv();
  * @param {object} wsHandler
  * @param {object} ctx
  */
-
 export function createWsServer(TUNNEL_TOKEN, wss, wsTunnelRef, tcpClients, wsHandler, ctx) {
+    // Vide l'IP exposée au démarrage
+    clearExposerIpEnv();
+
     wss.on("connection", (ws, req) => {
+        ws.isSecure = req.headers["x-forwarded-proto"] === "https"; // True si WSS via Render
+        ws.binaryType = "arraybuffer";
+
         wsTunnelRef.wsTunnel = ws;
         ctx.wsTunnel = ws;
+
+        // Gère la connexion WS côté tunnel
         wsHandler.handle(ws, tcpClients);
 
         // whitelist dynamique
@@ -29,34 +33,30 @@ export function createWsServer(TUNNEL_TOKEN, wss, wsTunnelRef, tcpClients, wsHan
         ctx.exposerIp = null;
 
         // Attend handshake HELLO pour exposer IP WAN
-        ws.on('message', function handleHello(msg) {
+        ws.on("message", function handleHello(msg) {
             try {
                 const obj = JSON.parse(msg);
                 if (obj && obj.type === "HELLO" && obj.ip) {
                     ctx.exposerIp = obj.ip;
                     setExposerIpEnv(obj.ip);
-                    ws.off('message', handleHello);
+                    ws.off("message", handleHello);
                 }
-            } catch {}
+            } catch {
+                // Pas un message HELLO → ignore
+            }
         });
 
-        ws.on("close", () => {
+        const cleanup = () => {
             wsTunnelRef.wsTunnel = null;
             ctx.wsTunnel = null;
             ctx.exposerIp = null;
             clearExposerIpEnv();
             for (const sock of tcpClients.values()) sock.destroy();
             tcpClients.clear();
-        });
+        };
 
-        ws.on("error", () => {
-            wsTunnelRef.wsTunnel = null;
-            ctx.wsTunnel = null;
-            ctx.exposerIp = null;
-            clearExposerIpEnv();
-            for (const sock of tcpClients.values()) sock.destroy();
-            tcpClients.clear();
-        });
+        ws.on("close", cleanup);
+        ws.on("error", cleanup);
     });
 
     return (httpServer) => {

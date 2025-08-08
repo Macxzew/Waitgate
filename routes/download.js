@@ -21,7 +21,7 @@ let wsLib
 try {
     wsLib = require('ws')
 } catch (e) {
-    console.log('[INFO] ‘ws’ module missing, automatic installation...')
+    console.log('[INFO] “ws” module missing, installing...')
     const res = spawnSync(
         process.platform.startsWith('win') ? 'npm.cmd' : 'npm',
         ['install', 'ws'],
@@ -31,7 +31,7 @@ try {
         console.error("[ERROR] Failed to install the ws module.")
         process.exit(1)
     }
-    console.log('[OK] ‘ws’ module installed.')
+    console.log('[OK] “ws” module installed.')
     console.log('[INFO] Please restart this script: node client.js')
     process.exit(0)
 }
@@ -49,7 +49,7 @@ const TAG_LEN = 16
 
 function encrypt(plainBuf) {
     const iv = crypto.randomBytes(IV_LEN)
-    const cipher = crypto.createCipheriv(ALGO, KEY, iv, { authTagLength: 16 })
+    const cipher = crypto.createCipheriv(ALGO, KEY, iv, { authTagLength: TAG_LEN })
     const encrypted = Buffer.concat([cipher.update(plainBuf), cipher.final()])
     const tag = cipher.getAuthTag()
     return Buffer.concat([iv, encrypted, tag])
@@ -59,14 +59,15 @@ function decrypt(payloadBuf) {
     const iv = payloadBuf.slice(0, IV_LEN)
     const tag = payloadBuf.slice(-TAG_LEN)
     const enc = payloadBuf.slice(IV_LEN, -TAG_LEN)
-    const decipher = crypto.createDecipheriv(ALGO, KEY, iv, { authTagLength: 16 })
+    const decipher = crypto.createDecipheriv(ALGO, KEY, iv, { authTagLength: TAG_LEN })
     decipher.setAuthTag(tag)
     return Buffer.concat([decipher.update(enc), decipher.final()])
 }
 
 const localSockets = new Map()
+let isSecureWS = false // détectera si WSS (Render)
 
-// Handler proxy HTTP/HTTPS
+// HTTP/HTTPS proxy handler
 function handleProxyHTTP(reqId, req, ws) {
     const options = {
         hostname: LOCAL_HOST,
@@ -95,7 +96,7 @@ function handleProxyHTTP(reqId, req, ws) {
     proxyReq.end()
 }
 
-// Handler TCP brut (MC, SSH, etc.)
+// TCP brut handler
 class LocalTunnel {
     constructor(clientId, ws, payload) {
         this.clientId = clientId
@@ -117,10 +118,20 @@ class LocalTunnel {
         })
         this.socket.on('data', chunk => {
             if (this.ws.readyState === 1) {
-                this.ws.send(JSON.stringify({
-                    id: this.clientId,
-                    data: encrypt(chunk).toString('base64')
-                }))
+                const encrypted = encrypt(chunk).toString('base64')
+                if (isSecureWS) {
+                    // Envoi binaire pour WSS
+                    this.ws.send(Buffer.from(JSON.stringify({
+                        id: this.clientId,
+                        data: encrypted
+                    })), { binary: true })
+                } else {
+                    // Envoi JSON texte pour WS
+                    this.ws.send(JSON.stringify({
+                        id: this.clientId,
+                        data: encrypted
+                    }))
+                }
             }
         })
         this.socket.on('close', () => {
@@ -135,11 +146,20 @@ class LocalTunnel {
     }
 }
 
+// Réception WS/WSS
 function handleWSMessage(msg, ws) {
     let obj
-    try {
-        obj = JSON.parse(msg)
-    } catch { return }
+    if (Buffer.isBuffer(msg)) {
+        try {
+            obj = JSON.parse(msg.toString())
+        } catch { return }
+    } else if (typeof msg === 'string') {
+        try {
+            obj = JSON.parse(msg)
+        } catch { return }
+    } else {
+        return
+    }
 
     if (obj.type === 'http-proxy' && obj.reqId && obj.req) {
         handleProxyHTTP(obj.reqId, obj.req, ws)
@@ -161,7 +181,6 @@ function handleWSMessage(msg, ws) {
 }
 
 function getPublicIp(cb) {
-    // Utilise un service public pour détecter l’IP WAN
     http.get('http://api.ipify.org', res => {
         let ip = '';
         res.on('data', chunk => ip += chunk);
@@ -177,10 +196,11 @@ function connectWS() {
             }
         });
         ws.on('open', () => {
+            isSecureWS = REMOTE_WS_URL.startsWith('wss://')
             if (ip) {
                 ws.send(JSON.stringify({ type: "HELLO", ip }));
             }
-            console.log('The WS tunnel is connected.');
+            console.log('The WS tunnel is connected. Mode:', isSecureWS ? 'WSS (binary)' : 'WS (text)');
         });
         ws.on('message', msg => {
             handleWSMessage(msg, ws);
@@ -192,8 +212,7 @@ function connectWS() {
             localSockets.clear();
             setTimeout(connectWS, 5000);
         });
-        ws.on('error', () => {
-        });
+        ws.on('error', () => {});
     });
 }
 
@@ -213,6 +232,7 @@ function getTunnelToken() {
     }
 }
 
+
 export function handle(req, res) {
     const token = getTunnelToken();
     if (!token) {
@@ -220,8 +240,16 @@ export function handle(req, res) {
         return res.end("Tunnel token not configured. Please restart the server.");
     }
 
-    const proto = req.headers["x-forwarded-proto"] || (req.connection.encrypted ? "https" : "http");
-    const host = req.headers["host"];
+    // Détection fiable du protocole
+    let proto = (req.headers["x-forwarded-proto"] || "").toLowerCase();
+    if (proto !== "https" && proto !== "http") {
+        proto = req.connection && req.connection.encrypted ? "https" : "http";
+    }
+
+    // Host sans double port parasite
+    let host = req.headers["host"] || "localhost";
+    host = host.replace(/:443$|:80$/i, ""); // supprime ports défaut
+
     const wsProto = proto === "https" ? "wss" : "ws";
     const wsUrl = `${wsProto}://${host}/tunnel`;
 
@@ -234,17 +262,23 @@ export function handle(req, res) {
     const KEY = Buffer.from(TUNNEL_CHACHA_KEY, "hex");
     const ALGO = "chacha20-poly1305";
     const IV_LEN = 12;
+    const TAG_LEN = 16;
 
-    const iv = crypto.randomBytes(IV_LEN);
-    const cipher = crypto.createCipheriv(ALGO, KEY, iv, { authTagLength: 16 });
-    const encrypted = Buffer.concat([cipher.update(Buffer.from(jsFinal, "utf-8")), cipher.final()]);
-    const tag = cipher.getAuthTag();
+    try {
+        const iv = crypto.randomBytes(IV_LEN);
+        const cipher = crypto.createCipheriv(ALGO, KEY, iv, { authTagLength: TAG_LEN });
+        const encrypted = Buffer.concat([cipher.update(Buffer.from(jsFinal, "utf-8")), cipher.final()]);
+        const tag = cipher.getAuthTag();
 
-    const payload = Buffer.concat([iv, encrypted, tag]);
+        const payload = Buffer.concat([iv, encrypted, tag]);
 
-    res.writeHead(200, {
-        "Content-Type": "application/javascript",
-        "Content-Disposition": 'attachment; filename="client.js"'
-    });
-    res.end(payload);
+        res.writeHead(200, {
+            "Content-Type": "application/javascript",
+            "Content-Disposition": 'attachment; filename="client.js"'
+        });
+        res.end(payload);
+    } catch (err) {
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end("Error generating client script: " + err.message);
+    }
 }

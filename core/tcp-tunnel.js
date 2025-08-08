@@ -4,9 +4,16 @@ import { encrypt } from "./crypto-utils.js";
 let nextId = 1;
 const clientBuffers = new Map();
 
-const MAX_INIT_BUFFER = 256 * 1024; // 256 Ko max first buffer
+const MAX_INIT_BUFFER = 256 * 1024; // 256 Ko max pour le premier buffer
 const INIT_TIMEOUT = 30000; // 30s max d'inactivité
 
+/**
+ * Forward TCP brut vers WS/WSS (via Render pour WSS)
+ * @param {net.Socket} socket - socket TCP
+ * @param {Buffer} firstBuffer - premier paquet
+ * @param {WebSocket} wsTunnel - connexion WS/WSS
+ * @param {Map} tcpClients - liste des clients TCP
+ */
 export function forward(socket, firstBuffer, wsTunnel, tcpClients) {
     const clientId = nextId++;
     tcpClients.set(clientId, socket);
@@ -14,18 +21,15 @@ export function forward(socket, firstBuffer, wsTunnel, tcpClients) {
     let totalInitBuffer = firstBuffer.length;
     clientBuffers.set(clientId, firstBuffer);
 
-    // Timer buffer après 50 ms
+    // Envoi différé après 50ms
     const timer = setTimeout(() => {
         const buffered = clientBuffers.get(clientId);
         if (!buffered) return;
-        wsTunnel.send(JSON.stringify({
-            id: clientId,
-            data: encrypt(buffered).toString("base64"),
-        }));
+        sendEncrypted(wsTunnel, clientId, buffered);
         clientBuffers.delete(clientId);
     }, 50);
 
-    // Timeout anti-idle sur socket
+    // Timeout anti-idle
     const idleTimeout = setTimeout(() => {
         socket.destroy();
         clientBuffers.delete(clientId);
@@ -34,8 +38,7 @@ export function forward(socket, firstBuffer, wsTunnel, tcpClients) {
     }, INIT_TIMEOUT);
 
     socket.on("data", (chunk) => {
-        clearTimeout(idleTimeout); // reset timeout à chaque data
-        // Limite sur le buffer initial
+        clearTimeout(idleTimeout); // reset idle timer
         if (clientBuffers.has(clientId)) {
             totalInitBuffer += chunk.length;
             if (totalInitBuffer > MAX_INIT_BUFFER) {
@@ -50,12 +53,7 @@ export function forward(socket, firstBuffer, wsTunnel, tcpClients) {
                 Buffer.concat([clientBuffers.get(clientId), chunk])
             );
         } else {
-            wsTunnel.send(
-                JSON.stringify({
-                    id: clientId,
-                    data: encrypt(chunk).toString("base64"),
-                })
-            );
+            sendEncrypted(wsTunnel, clientId, chunk);
         }
     });
 
@@ -68,4 +66,21 @@ export function forward(socket, firstBuffer, wsTunnel, tcpClients) {
 
     socket.on("close", cleanup);
     socket.on("error", cleanup);
+}
+
+/**
+ * Envoie les données chiffrées via WS ou WSS
+ */
+function sendEncrypted(wsTunnel, clientId, buffer) {
+    const payload = JSON.stringify({
+        id: clientId,
+        data: encrypt(buffer).toString("base64"),
+    });
+
+    // Envoi en binaire si WSS (Render) → éviter blocage handshake
+    if (wsTunnel.isSecure) {
+        wsTunnel.send(Buffer.from(payload), { binary: true });
+    } else {
+        wsTunnel.send(payload);
+    }
 }
