@@ -101,17 +101,28 @@ Edit the `.env` file to customize.
 waitgate/
 ├─ core/
 │  ├─ crypto-utils.js      # ChaCha20-Poly1305 encryption/decryption
+│  ├─ exposer-ip.js        # IP exposer logic
+│  ├─ rateLimiter.js       # Request rate limiting
 │  ├─ tcp-tunnel.js        # TCP tunnel logic
 │  └─ ws-handler.js        # WebSocket handler
+│
 ├─ routes/
 │  ├─ dashboard.js         # HTTP/dashboard routing
 │  └─ download.js          # Generates client.js
+│
+├─ server/
+│  ├─ httpServer.js        # HTTP SRV
+│  ├─ tcpServer.js         # TCP SRV
+│  └─ wsServer.js          # WS SRV
+│
 ├─ views/                  # HTML frontend
 │  ├─ index.html
 │  ├─ login.html
 │  └─ panel.html
+│
 ├─ config.js               # Env management
 ├─ server.js               # Main server entry
+├─ package.json            # Node.js dependencies
 └─ .env                    # Secret config (auto)
 ```
 
