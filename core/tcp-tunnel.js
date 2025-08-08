@@ -72,15 +72,16 @@ export function forward(socket, firstBuffer, wsTunnel, tcpClients) {
  * Envoie les données chiffrées via WS ou WSS
  */
 function sendEncrypted(wsTunnel, clientId, buffer) {
-    const payload = JSON.stringify({
-        id: clientId,
-        data: encrypt(buffer).toString("base64"),
-    });
-
-    // Envoi en binaire si WSS (Render) → éviter blocage handshake
+    const encrypted = encrypt(buffer); // Buffer chiffré
     if (wsTunnel.isSecure) {
-        wsTunnel.send(Buffer.from(payload), { binary: true });
+        // Envoi en binaire : ID (4 octets) + payload chiffré
+        const idBuf = Buffer.alloc(4);
+        idBuf.writeUInt32BE(clientId);
+        wsTunnel.send(Buffer.concat([idBuf, encrypted]), { binary: true });
     } else {
-        wsTunnel.send(payload);
+        wsTunnel.send(JSON.stringify({
+            id: clientId,
+            data: encrypted.toString("base64"),
+        }));
     }
 }

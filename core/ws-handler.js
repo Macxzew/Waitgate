@@ -2,21 +2,24 @@
 import { decrypt } from './crypto-utils.js';
 
 export function handle(ws, tcpClients) {
-    ws.on('message', msg => {
-        let obj;
-        try {
-            obj = JSON.parse(msg);
-        } catch {
+    ws.on('message', (msg, isBinary) => {
+        if (isBinary) {
+            const id = msg.readUInt32BE(0);
+            const payload = msg.slice(4);
+            const sock = tcpClients.get(id);
+            if (sock && !sock.destroyed) {
+                sock.write(decrypt(payload));
+            }
             return;
         }
+        // Sinon, on reste sur l’ancien flux JSON
+        let obj;
+        try { obj = JSON.parse(msg); } catch { return; }
         const { id, data } = obj || {};
         if (!id || !data) return;
         const sock = tcpClients.get(id);
         if (sock && !sock.destroyed) {
-            try {
-                sock.write(decrypt(Buffer.from(data, 'base64')));
-            } catch {
-            }
+            sock.write(decrypt(Buffer.from(data, 'base64')));
         }
     });
 
