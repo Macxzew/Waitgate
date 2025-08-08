@@ -16,13 +16,13 @@ export function createWsServer(TUNNEL_TOKEN, wss, wsTunnelRef, tcpClients, wsHan
     clearExposerIpEnv();
 
     wss.on("connection", (ws, req) => {
-        ws.isSecure = req.headers["x-forwarded-proto"] === "https"; // True si WSS via Render
+        // Mode texte partout (JSON + base64)
         ws.binaryType = "arraybuffer";
 
         wsTunnelRef.wsTunnel = ws;
         ctx.wsTunnel = ws;
 
-        // Gère la connexion WS côté tunnel
+        // Gère la connexion WS côté tunnel (JSON-only)
         wsHandler.handle(ws, tcpClients);
 
         // whitelist dynamique
@@ -35,7 +35,8 @@ export function createWsServer(TUNNEL_TOKEN, wss, wsTunnelRef, tcpClients, wsHan
         // Attend handshake HELLO pour exposer IP WAN
         ws.on("message", function handleHello(msg) {
             try {
-                const obj = JSON.parse(msg);
+                const str = Buffer.isBuffer(msg) ? msg.toString() : (typeof msg === "string" ? msg : "");
+                const obj = JSON.parse(str);
                 if (obj && obj.type === "HELLO" && obj.ip) {
                     ctx.exposerIp = obj.ip;
                     setExposerIpEnv(obj.ip);

@@ -2,10 +2,11 @@
 import { decrypt } from './crypto-utils.js';
 
 export function handle(ws, tcpClients) {
-    ws.on('message', msg => {
+    ws.on('message', (msg) => {
         let obj;
         try {
-            obj = JSON.parse(msg);
+            const str = Buffer.isBuffer(msg) ? msg.toString() : (typeof msg === 'string' ? msg : '');
+            obj = JSON.parse(str);
         } catch {
             return;
         }
@@ -16,6 +17,7 @@ export function handle(ws, tcpClients) {
             try {
                 sock.write(decrypt(Buffer.from(data, 'base64')));
             } catch {
+                // ignore décryptions invalides (paquet partiel, etc.)
             }
         }
     });

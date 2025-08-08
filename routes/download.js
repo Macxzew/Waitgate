@@ -8,6 +8,8 @@ import { TUNNEL_CHACHA_KEY } from "../config.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// === Template du client généré (Node.js) ===
+// IMPORTANT: 100% JSON + base64, perMessageDeflate désactivé, AUCUN envoi binaire WS
 const jsTemplate = `
 const LOCAL_HOST = '127.0.0.1' // Service IP address to be exposed
 const LOCAL_PORT = 443         // Service port to be exposed
@@ -65,9 +67,8 @@ function decrypt(payloadBuf) {
 }
 
 const localSockets = new Map()
-let isSecureWS = false // détectera si WSS (Render)
 
-// HTTP/HTTPS proxy handler
+// HTTP/HTTPS proxy handler (optionnel)
 function handleProxyHTTP(reqId, req, ws) {
     const options = {
         hostname: LOCAL_HOST,
@@ -98,10 +99,10 @@ function handleProxyHTTP(reqId, req, ws) {
 
 // TCP brut handler
 class LocalTunnel {
-    constructor(clientId, ws, payload) {
+    constructor(clientId, ws, payloadBase64) {
         this.clientId = clientId
         this.ws = ws
-        this.payload = payload
+        this.payload = payloadBase64
         this.socket = null
         this.retryTimeout = null
         this.connect()
@@ -118,20 +119,12 @@ class LocalTunnel {
         })
         this.socket.on('data', chunk => {
             if (this.ws.readyState === 1) {
-                const encrypted = encrypt(chunk).toString('base64')
-                if (isSecureWS) {
-                    // Envoi binaire pour WSS
-                    this.ws.send(Buffer.from(JSON.stringify({
-                        id: this.clientId,
-                        data: encrypted
-                    })), { binary: true })
-                } else {
-                    // Envoi JSON texte pour WS
-                    this.ws.send(JSON.stringify({
-                        id: this.clientId,
-                        data: encrypted
-                    }))
-                }
+                const encryptedB64 = encrypt(chunk).toString('base64')
+                // Toujours JSON texte (pas de Buffer binaire)
+                this.ws.send(JSON.stringify({
+                    id: this.clientId,
+                    data: encryptedB64
+                }))
             }
         })
         this.socket.on('close', () => {
@@ -146,20 +139,13 @@ class LocalTunnel {
     }
 }
 
-// Réception WS/WSS
+// Réception WS/WSS -> JSON + base64 uniquement
 function handleWSMessage(msg, ws) {
     let obj
-    if (Buffer.isBuffer(msg)) {
-        try {
-            obj = JSON.parse(msg.toString())
-        } catch { return }
-    } else if (typeof msg === 'string') {
-        try {
-            obj = JSON.parse(msg)
-        } catch { return }
-    } else {
-        return
-    }
+    try {
+        const str = Buffer.isBuffer(msg) ? msg.toString() : (typeof msg === 'string' ? msg : '')
+        obj = JSON.parse(str)
+    } catch { return }
 
     if (obj.type === 'http-proxy' && obj.reqId && obj.req) {
         handleProxyHTTP(obj.reqId, obj.req, ws)
@@ -182,56 +168,48 @@ function handleWSMessage(msg, ws) {
 
 function getPublicIp(cb) {
     http.get('http://api.ipify.org', res => {
-        let ip = '';
-        res.on('data', chunk => ip += chunk);
-        res.on('end', () => cb(ip.trim()));
-    }).on('error', () => cb(null));
+        let ip = ''
+        res.on('data', chunk => ip += chunk)
+        res.on('end', () => cb(ip.trim()))
+    }).on('error', () => cb(null))
 }
 
 function connectWS() {
     getPublicIp(function(ip) {
         const ws = new WebSocket(REMOTE_WS_URL, {
-            headers: {
-                "Authorization": \`Bearer \${TUNNEL_TOKEN}\`
-            }
-        });
+            perMessageDeflate: false, // IMPORTANT: pas de compression
+            headers: { "Authorization": \`Bearer \${TUNNEL_TOKEN}\` }
+        })
         ws.on('open', () => {
-            isSecureWS = REMOTE_WS_URL.startsWith('wss://')
-            if (ip) {
-                ws.send(JSON.stringify({ type: "HELLO", ip }));
-            }
-            console.log('The WS tunnel is connected. Mode:', isSecureWS ? 'WSS (binary)' : 'WS (text)');
-        });
-        ws.on('message', msg => {
-            handleWSMessage(msg, ws);
-        });
+            if (ip) ws.send(JSON.stringify({ type: "HELLO", ip }))
+            console.log('The WS tunnel is connected. Mode: WS/WSS (JSON+base64)')
+        })
+        ws.on('message', msg => { handleWSMessage(msg, ws) })
         ws.on('close', () => {
-            console.log('Tunnel closed, reconnecting in 5 seconds.');
-            for (const sock of localSockets.values())
-                sock.destroy();
-            localSockets.clear();
-            setTimeout(connectWS, 5000);
-        });
-        ws.on('error', () => {});
-    });
+            console.log('Tunnel closed, reconnecting in 5 seconds.')
+            for (const sock of localSockets.values()) sock.destroy()
+            localSockets.clear()
+            setTimeout(connectWS, 5000)
+        })
+        ws.on('error', () => {})
+    })
 }
 
 connectWS()
-`
+`;
 
-// Récup token + clé dans .env
+// --- Générateur de client.js chiffré ---
 function getTunnelToken() {
     try {
-        const envPath = path.resolve(__dirname, '../.env')
-        if (!fs.existsSync(envPath)) return null
-        const envContent = fs.readFileSync(envPath, 'utf-8')
-        const match = envContent.match(/^TUNNEL_TOKEN=(.+)$/m)
-        return match ? match[1].trim() : null
+        const envPath = path.resolve(__dirname, '../.env');
+        if (!fs.existsSync(envPath)) return null;
+        const envContent = fs.readFileSync(envPath, 'utf-8');
+        const match = envContent.match(/^TUNNEL_TOKEN=(.+)$/m);
+        return match ? match[1].trim() : null;
     } catch {
-        return null
+        return null;
     }
 }
-
 
 export function handle(req, res) {
     const token = getTunnelToken();
@@ -240,15 +218,14 @@ export function handle(req, res) {
         return res.end("Tunnel token not configured. Please restart the server.");
     }
 
-    // Détection fiable du protocole
+    // Détection protocole pour construire REMOTE_WS_URL
     let proto = (req.headers["x-forwarded-proto"] || "").toLowerCase();
     if (proto !== "https" && proto !== "http") {
         proto = req.connection && req.connection.encrypted ? "https" : "http";
     }
 
-    // Host sans double port parasite
     let host = req.headers["host"] || "localhost";
-    host = host.replace(/:443$|:80$/i, ""); // supprime ports défaut
+    host = host.replace(/:443$|:80$/i, "");
 
     const wsProto = proto === "https" ? "wss" : "ws";
     const wsUrl = `${wsProto}://${host}/tunnel`;
@@ -258,7 +235,7 @@ export function handle(req, res) {
         .replace("REPLACE_ME_TUNNEL_TOKEN", token)
         .replace("REPLACE_ME_CHACHA_KEY", TUNNEL_CHACHA_KEY);
 
-    // Chiffrement du JS généré
+    // On renvoie le client.js chiffré (ChaCha20-Poly1305)
     const KEY = Buffer.from(TUNNEL_CHACHA_KEY, "hex");
     const ALGO = "chacha20-poly1305";
     const IV_LEN = 12;
