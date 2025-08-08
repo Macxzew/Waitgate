@@ -119,13 +119,11 @@ class LocalTunnel {
         this.socket.on('data', chunk => {
             if (this.ws.readyState === 1) {
                 if (isSecureWS) {
-                    // Binaire pur : ID (4 octets) + payload chiffré
                     const idBuf = Buffer.alloc(4);
                     idBuf.writeUInt32BE(this.clientId);
                     const encrypted = encrypt(chunk);
                     this.ws.send(Buffer.concat([idBuf, encrypted]), { binary: true });
                 } else {
-                    // JSON texte (base64) pour WS
                     const encrypted = encrypt(chunk).toString('base64');
                     this.ws.send(JSON.stringify({
                         id: this.clientId,
