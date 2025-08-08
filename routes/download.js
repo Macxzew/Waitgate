@@ -118,17 +118,19 @@ class LocalTunnel {
         })
         this.socket.on('data', chunk => {
             if (this.ws.readyState === 1) {
+                const encrypted = encrypt(chunk).toString('base64')
                 if (isSecureWS) {
-                    const idBuf = Buffer.alloc(4);
-                    idBuf.writeUInt32BE(this.clientId);
-                    const encrypted = encrypt(chunk);
-                    this.ws.send(Buffer.concat([idBuf, encrypted]), { binary: true });
+                    // Envoi binaire pour WSS
+                    this.ws.send(Buffer.from(JSON.stringify({
+                        id: this.clientId,
+                        data: encrypted
+                    })), { binary: true })
                 } else {
-                    const encrypted = encrypt(chunk).toString('base64');
+                    // Envoi JSON texte pour WS
                     this.ws.send(JSON.stringify({
                         id: this.clientId,
                         data: encrypted
-                    }));
+                    }))
                 }
             }
         })
@@ -146,35 +148,35 @@ class LocalTunnel {
 
 // Réception WS/WSS
 function handleWSMessage(msg, ws) {
-    // WSS binaire : ID (4 octets) + payload chiffré
-    if (isSecureWS && Buffer.isBuffer(msg)) {
-        const id = msg.readUInt32BE(0);
-        const payload = msg.slice(4);
-        const socket = localSockets.get(id);
-        if (!socket) {
-            new LocalTunnel(id, ws, payload.toString('base64')); // réutilise ctor mais garde base64 pour init
-        } else if (!socket.destroyed) {
-            socket.write(decrypt(payload));
-        }
-        return;
+    let obj
+    if (Buffer.isBuffer(msg)) {
+        try {
+            obj = JSON.parse(msg.toString())
+        } catch { return }
+    } else if (typeof msg === 'string') {
+        try {
+            obj = JSON.parse(msg)
+        } catch { return }
+    } else {
+        return
     }
-
-    // Sinon : JSON texte (mode WS local)
-    let obj;
-    try { obj = JSON.parse(msg.toString()); } catch { return; }
 
     if (obj.type === 'http-proxy' && obj.reqId && obj.req) {
-        handleProxyHTTP(obj.reqId, obj.req, ws);
-        return;
+        handleProxyHTTP(obj.reqId, obj.req, ws)
+        return
     }
 
-    const { id, data } = obj || {};
-    if (!id || !data) return;
-    const socket = localSockets.get(id);
+    const { id, data } = obj || {}
+    if (!id || !data) return
+    const socket = localSockets.get(id)
     if (!socket)
-        new LocalTunnel(id, ws, data);
+        new LocalTunnel(id, ws, data)
     else if (!socket.destroyed) {
-        socket.write(decrypt(Buffer.from(data, 'base64')));
+        try {
+            socket.write(decrypt(Buffer.from(data, 'base64')))
+        } catch (e) {
+            console.log('[ERR] Déchiffrement échoué :', e)
+        }
     }
 }
 
