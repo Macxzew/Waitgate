@@ -18,24 +18,35 @@ const TUNNEL_TOKEN = 'REPLACE_ME_TUNNEL_TOKEN'
 const CHACHA_KEY_HEX = 'REPLACE_ME_CHACHA_KEY'
 const RETRY_DELAY = 3000
 
-const { spawnSync } = require('child_process')
-let wsLib
 try {
-    wsLib = require('ws')
+  wsLib = require('ws');
 } catch (e) {
-    console.log('[INFO] “ws” module missing, installing...')
-    const res = spawnSync(
-        process.platform.startsWith('win') ? 'npm.cmd' : 'npm',
-        ['install', 'ws'],
-        { stdio: 'inherit' }
-    )
-    if (res.status !== 0) {
-        console.error("[ERROR] Failed to install the ws module.")
-        process.exit(1)
-    }
-    console.log('[OK] “ws” module installed.')
-    console.log('[INFO] Please restart this script: node client.js')
-    process.exit(0)
+  console.log("[INFO] Module 'ws' introuvable. Tentative d'installation automatique...");
+
+  const npmCmd = process.platform.startsWith('win') ? 'npm.cmd' : 'npm';
+
+  const check = spawnSync(npmCmd, ['--version'], { encoding: 'utf8' });
+  if (check.status !== 0) {
+    console.error("[ERROR] npm non trouvé dans le PATH. Installez manuellement : npm install ws --no-save");
+    process.exit(1);
+  }
+
+  const installArgs = ['install', 'ws', '--no-save', '--no-audit', '--no-fund'];
+  const res = spawnSync(npmCmd, installArgs, { encoding: 'utf8', stdio: 'inherit' });
+
+  if (res.status !== 0) {
+    console.error("[ERROR] Échec de l'installation de 'ws'. Essayez manuellement : npm install ws --no-save");
+    process.exit(1);
+  }
+
+  try {
+    wsLib = require('ws');
+    console.log("[OK] Module 'ws' installé. Relancez le script : node client.js");
+    process.exit(0);
+  } catch (e2) {
+    console.error("[ERROR] Impossible de charger 'ws' après installation :", e2);
+    process.exit(1);
+  }
 }
 
 const WebSocket = wsLib

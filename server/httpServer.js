@@ -10,10 +10,26 @@ const indexPath = path.join(process.cwd(), "views", "index.html");
 
 export function createHttpServer(wsTunnelRef, tcpClients) {
   return http.createServer((req, res) => {
+    const SOCKET_TIMEOUT_MS = Number(process.env.HTTP_IDLE_TIMEOUT_MS || 15000);
+    if (!req.socket._waitgate_timeout_installed) {
+    req.socket._waitgate_timeout_installed = true;
+    req.socket.on("timeout", function () {
+        try {
+        this.destroy();
+        } catch (_) {}
+    });
+    }
+    req.socket.setTimeout(SOCKET_TIMEOUT_MS);
+
     const ip = getIp(req);
     if (!checkRateLimit(ip)) {
-      res.writeHead(429, { "Content-Type": "text/plain" });
-      return res.end("Too many requests, try again later.\n");
+        res.writeHead(429, {
+            "Content-Type": "text/plain",
+            "Retry-After": "60",
+            "X-RateLimit-Limit": String(process.env.RL_MAX || 100),
+            "X-RateLimit-Window-MS": String(process.env.RL_WINDOW_MS || 60000)
+        });
+        return res.end("Too many requests, try again later.\n");
     }
 
     const WAITGATE_API_ROUTES = [

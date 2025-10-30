@@ -1,10 +1,11 @@
 import dotenv from 'dotenv';
 
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;     // 1 min
-const RATE_LIMIT_MAX = 100;                 // max 100 requêtes/min par IP
-const BAN_DURATION_MS = 5 * 60 * 1000;      // ban 5 min
-const GLOBAL_BAN_THRESHOLD = 100;           // seuil d'IPs bannies pour ban global
-const GLOBAL_BAN_DURATION_MS = 60 * 1000;   // 1 min ban global
+const RATE_LIMIT_WINDOW_MS   = Number(process.env.RL_WINDOW_MS || 60_000);     // 1 min
+const RATE_LIMIT_MAX         = Number(process.env.RL_MAX || 100);              // max 100 requêtes/min par IP
+const BAN_DURATION_MS        = Number(process.env.RL_BAN_MS || 300_000);       // ban 5 min
+const GLOBAL_BAN_THRESHOLD   = Number(process.env.RL_GLOBAL_THRESHOLD || 100); // seuil d'IPs bannies pour ban global
+const GLOBAL_BAN_DURATION_MS = Number(process.env.RL_GLOBAL_BAN_MS || 60_000); // 1 min ban global
+
 const _log = console.log;
 const ipRequests = new Map();
 
@@ -89,7 +90,7 @@ export function checkRateLimit(ip) {
     data.count++;
     if (data.count > RATE_LIMIT_MAX) {
         data.bannedUntil = now + BAN_DURATION_MS;
-        console.log(`IP ${ip} banned until ${new Date(data.bannedUntil).toISOString()}`);
+        console.log(`[INFO] IP ${ip} banned until ${new Date(data.bannedUntil).toISOString()}`);
         return false;
     }
     return true;

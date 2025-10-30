@@ -72,13 +72,21 @@ if (env.EXPOSER_IP === undefined) {
     env.EXPOSER_IP = "";
 }
 
+// Anti-DDoS defaults
+if (!env.RL_WINDOW_MS) env.RL_WINDOW_MS = "60000";
+if (!env.RL_MAX) env.RL_MAX = "80";
+if (!env.RL_BAN_MS) env.RL_BAN_MS = "300000";
+if (!env.RL_GLOBAL_THRESHOLD) env.RL_GLOBAL_THRESHOLD = "200";
+if (!env.RL_GLOBAL_BAN_MS) env.RL_GLOBAL_BAN_MS = "60000";
+if (!env.HTTP_IDLE_TIMEOUT_MS) env.HTTP_IDLE_TIMEOUT_MS = "15000";
+
 saveEnv(env);
 
 // Info option
 console.log("[INFO] DASH_USER     =", env.DASH_USER);
 console.log("[INFO] DASH_PASS     =", env.DASH_PASS);
 console.log("[INFO] TUNNEL_TOKEN  =", env.TUNNEL_TOKEN);
-console.log("[INFO] TOTP_SECRET  =", env.TOTP_SECRET);
+console.log("[INFO] TOTP_SECRET   =", env.TOTP_SECRET);
 
 // Exporte les valeurs
 export const TUNNEL_CHACHA_KEY = env.TUNNEL_CHACHA_KEY.trim();

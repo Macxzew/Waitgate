@@ -1,6 +1,6 @@
 {
   "name": "waitgate",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Secure TCP/HTTP reverse proxy with encrypted WebSocket tunnel using ChaCha20-Poly1305.",
   "type": "module",
   "main": "server.js",
