@@ -21,7 +21,7 @@ const RETRY_DELAY = 3000
 try {
   wsLib = require('ws');
 } catch (e) {
-  console.log("[INFO] Module 'ws' introuvable. Tentative d'installation automatique...");
+  console.log("[INFO] Module ws introuvable. Tentative d installation automatique...");
 
   const npmCmd = process.platform.startsWith('win') ? 'npm.cmd' : 'npm';
 
@@ -35,16 +35,16 @@ try {
   const res = spawnSync(npmCmd, installArgs, { encoding: 'utf8', stdio: 'inherit' });
 
   if (res.status !== 0) {
-    console.error("[ERROR] Échec de l'installation de 'ws'. Essayez manuellement : npm install ws --no-save");
+    console.error("[ERROR] Echec de l installation de ws. Essayez manuellement : npm install ws --no-save");
     process.exit(1);
   }
 
   try {
     wsLib = require('ws');
-    console.log("[OK] Module 'ws' installé. Relancez le script : node client.js");
+    console.log("[OK] Module ws disponible. Relancez le script : node client.js");
     process.exit(0);
   } catch (e2) {
-    console.error("[ERROR] Impossible de charger 'ws' après installation :", e2);
+    console.error("[ERROR] Impossible de charger ws après installation :", e2);
     process.exit(1);
   }
 }
@@ -172,7 +172,7 @@ function handleWSMessage(msg, ws) {
         try {
             socket.write(decrypt(Buffer.from(data, 'base64')))
         } catch (e) {
-            console.log('[ERR] Déchiffrement échoué :', e)
+            console.log('[ERR] Déchiffrement impossible :', e)
         }
     }
 }
