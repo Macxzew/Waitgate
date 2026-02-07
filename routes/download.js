@@ -8,9 +8,10 @@ import { TUNNEL_CHACHA_KEY } from "../config.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// === Template du client généré (Node.js) ===
-// IMPORTANT: 100% JSON + base64, perMessageDeflate désactivé, AUCUN envoi binaire WS
+// Template client généré (Node.js) ===
 const jsTemplate = `
+const { spawnSync } = require('child_process')
+let wsLib
 const LOCAL_HOST = '127.0.0.1' // Service IP address to be exposed
 const LOCAL_PORT = 443         // Service port to be exposed
 const REMOTE_WS_URL = 'REPLACE_ME_REMOTE_WS_URL'
@@ -40,7 +41,7 @@ try {
   }
 
   try {
-    wsLib = require('ws');
+    wsLib = require('ws')
     console.log("[OK] Module ws disponible. Relancez le script : node client.js");
     process.exit(0);
   } catch (e2) {
@@ -209,7 +210,7 @@ function connectWS() {
 connectWS()
 `;
 
-// --- Générateur de client.js chiffré ---
+// Générateur client.js chiffré 
 function getTunnelToken() {
     try {
         const envPath = path.resolve(__dirname, '../.env');
@@ -229,7 +230,7 @@ export function handle(req, res) {
         return res.end("Tunnel token not configured. Please restart the server.");
     }
 
-    // Détection protocole pour construire REMOTE_WS_URL
+    // Detection protocole pour REMOTE_WS_URL
     let proto = (req.headers["x-forwarded-proto"] || "").toLowerCase();
     if (proto !== "https" && proto !== "http") {
         proto = req.connection && req.connection.encrypted ? "https" : "http";
@@ -246,7 +247,7 @@ export function handle(req, res) {
         .replace("REPLACE_ME_TUNNEL_TOKEN", token)
         .replace("REPLACE_ME_CHACHA_KEY", TUNNEL_CHACHA_KEY);
 
-    // On renvoie le client.js chiffré (ChaCha20-Poly1305)
+    // renvoie client.js chiffré (ChaCha20-Poly1305)
     const KEY = Buffer.from(TUNNEL_CHACHA_KEY, "hex");
     const ALGO = "chacha20-poly1305";
     const IV_LEN = 12;
